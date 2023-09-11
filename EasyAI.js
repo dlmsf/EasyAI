@@ -8,8 +8,8 @@ class EasyAI {
 
     }
 
-Generate(prompt = 'Once upon a time'){
-    return this.LlamaCPP.Generate(prompt)
+async Generate(prompt = 'Once upon a time'){
+    return await this.LlamaCPP.Generate(prompt)
 }
     
 static ModelManager = {

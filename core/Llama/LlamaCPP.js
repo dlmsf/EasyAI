@@ -1,18 +1,35 @@
 import { promises as fsPromises, createWriteStream } from 'fs';
-import { join } from 'path';
+import path , { join } from 'path';
 import https from 'https';
+import {exec} from 'child_process'
+import findDirectory from '../../useful/findDirectory.js';
 
 class LlamaCPP {
     constructor(config = {modelpath : ''}) {
-        this.ModelPath = config.modelpath;
+        if (config.modelpath) {
+            this.ModelPath = path.join(process.cwd(), config.modelpath);
+        } else {
+            this.ModelPath = '';
+        }
         this.ModelLoaded = false;
         this.initializeModelPath();
     }
 
-    Generate(prompt = 'Once upon a time') {
+    async Generate(prompt = 'Once upon a time') {
         if(this.ModelLoaded){
-            console.log('Generating Text...')
-            return `${prompt} <Generated Text>`
+            let commandline = `make -j && ./main -m ${this.ModelPath} -p "${prompt}" -n 400 -e`
+            let cpp_path = await findDirectory(process.cwd(),'llama.cpp')
+            console.log(cpp_path)
+            if(cpp_path){
+                console.log('Executando command line...')
+                exec(commandline,{cwd : cpp_path},(e,std,std_error) => {
+                    console.log(e)
+                    console.log(std)
+                    console.log(std_error)
+                })
+            }
+          
+            
         } else {
             console.error('Erro no LlamaCPP.Generate() | Modelo não carregado')
             return false
@@ -20,7 +37,7 @@ class LlamaCPP {
     }
 
     async initializeModelPath() {
-        const modelsDir = join('./models');
+        const modelsDir = path.join(process.cwd(), './models');
     
         if (!await this.directoryExists(modelsDir)) {
             await fsPromises.mkdir(modelsDir);
@@ -51,6 +68,7 @@ class LlamaCPP {
             const shouldDownload = await this.promptDownloadModel();
             if (shouldDownload) {
                 await this.loadSampleModel(modelsDir);
+                this.ModelPath = path.join(process.cwd(), this.ModelPath);
             } else {
                 console.log('No Llama Model was loaded.');
             }
