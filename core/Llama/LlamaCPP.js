@@ -9,8 +9,14 @@ class LlamaCPP {
         this.initializeModelPath();
     }
 
-    Generate() {
-        
+    Generate(prompt = 'Once upon a time') {
+        if(this.ModelLoaded){
+            console.log('Generating Text...')
+            return `${prompt} <Generated Text>`
+        } else {
+            console.error('Erro no LlamaCPP.Generate() | Modelo não carregado')
+            return false
+        }
     }
 
     async initializeModelPath() {

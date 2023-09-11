@@ -1,5 +1,5 @@
 import EasyAI_Server from "./core/EasyAI_Server.js"
-import LlamaCPP from "./core/LlamaCPP.js"
+import LlamaCPP from "./core/Llama/LlamaCPP.js"
 
 class EasyAI {
     constructor(config = {llama_model : ''}){
@@ -8,7 +8,9 @@ class EasyAI {
 
     }
 
-
+Generate(prompt = 'Once upon a time'){
+    return this.LlamaCPP.Generate(prompt)
+}
     
 static ModelManager = {
 
