@@ -20,11 +20,9 @@ class LlamaCPP {
 async Generate(prompt = 'Once upon a time') {
     if (this.ModelLoaded && this.llamaCPP_installed) {
         let cpp_path = await findDirectory(process.cwd(), 'llama.cpp');
-        console.log(cpp_path);
         if (cpp_path) {
             console.log('Executing command line...');
 
-            // Start with the 'make' command.
             let make = spawn('make', ['-j'], { cwd: cpp_path, stdio: 'inherit' });
 
             make.on('exit', (code) => {
@@ -33,7 +31,6 @@ async Generate(prompt = 'Once upon a time') {
                     return;
                 }
 
-                // If 'make' succeeds, execute the './main' command.
                 let mainArgs = ['-m', this.ModelPath, '-p', prompt, '-n', '400', '-e'];
                 let executeMain = spawn('./main', mainArgs, { cwd: cpp_path, stdio: 'inherit' });
 
@@ -55,7 +52,7 @@ async Generate(prompt = 'Once upon a time') {
 }
 
 
-    async initializeLlamaCPPRepo() { // Step 2: New method to clone llama.cpp repo
+    async initializeLlamaCPPRepo() { 
         const llamaCPPDir = path.join(process.cwd(), 'llama.cpp');
 
         if (!await this.directoryExists(llamaCPPDir)) {
