@@ -12,11 +12,13 @@ class LlamaCPP {
             this.ModelPath = '';
         }
         this.ModelLoaded = false;
+        this.llamaCPP_installed = false
         this.initializeModelPath();
+        this.initializeLlamaCPPRepo()
     }
 
     async Generate(prompt = 'Once upon a time') {
-        if(this.ModelLoaded){
+        if(this.ModelLoaded && this.llamaCPP_installed){
             let commandline = `make -j && ./main -m ${this.ModelPath} -p "${prompt}" -n 400 -e`
             let cpp_path = await findDirectory(process.cwd(),'llama.cpp')
             console.log(cpp_path)
@@ -31,8 +33,27 @@ class LlamaCPP {
           
             
         } else {
-            console.error('Erro no LlamaCPP.Generate() | Modelo não carregado')
+            console.error('Erro no LlamaCPP.Generate() | Modelo não carregado ou llama.cpp não encontrado')
             return false
+        }
+    }
+
+    async initializeLlamaCPPRepo() { // Step 2: New method to clone llama.cpp repo
+        const llamaCPPDir = path.join(process.cwd(), 'llama.cpp');
+
+        if (!await this.directoryExists(llamaCPPDir)) {
+            console.log('Cloning the llama.cpp repository...');
+            exec('git clone https://github.com/ggerganov/llama.cpp.git', { cwd: process.cwd() }, (error, stdout, stderr) => {
+                if (error) {
+                    console.error('Failed to clone the llama.cpp repository:', error);
+                } else {
+                    this.llamaCPP_installed = true;
+                    console.log('llama.cpp repository cloned successfully!');
+                }
+            });
+        } else {
+            this.llamaCPP_installed = true;
+            console.log('llama.cpp repository already exists.');
         }
     }
 
