@@ -24,17 +24,30 @@ async function CompletionPostRequest(bodyObject) {
 
             res.on('data', (chunk) => {
                 data += chunk;
+
+                if (bodyObject.stream) {
+                    try {
+                        const message = JSON.parse(chunk);
+                        console.log("Received streamed message:", message);
+                    } catch (error) {
+                        console.error("Failed to parse a streamed chunk as JSON:", chunk);
+                    }
+                }
             });
 
             res.on('end', () => {
-                if (res.statusCode >= 200 && res.statusCode < 300) {
-                    try {
-                        resolve(JSON.parse(data));
-                    } catch (error) {
-                        reject(new Error("Failed to parse response as JSON: " + data));
+                if (!bodyObject.stream) {
+                    if (res.statusCode >= 200 && res.statusCode < 300) {
+                        try {
+                            resolve(JSON.parse(data));
+                        } catch (error) {
+                            reject(new Error("Failed to parse response as JSON: " + data));
+                        }
+                    } else {
+                        reject(new Error(`Request failed with status ${res.statusCode}: ${data}`));
                     }
                 } else {
-                    reject(new Error(`Request failed with status ${res.statusCode}: ${data}`));
+                    resolve({message: 'Stream ended'}); 
                 }
             });
         });
@@ -65,36 +78,6 @@ class LlamaCPP {
     }
 
 
-/*
-
-let cpp_path = await findDirectory(process.cwd(), 'llama.cpp');
-        if (cpp_path) {
-            console.log('Executing command line...');
-
-            let make = spawn('make', ['-j'], { cwd: cpp_path, stdio: 'inherit' });
-
-            make.on('exit', (code) => {
-                if (code !== 0) {
-                    console.error(`make process exited with code ${code}`);
-                    return;
-                }
-
-                let mainArgs = ['-m', this.ModelPath, '-p', prompt, '-n', '400', '-e'];
-                let executeMain = spawn('./main', mainArgs, { cwd: cpp_path, stdio: 'inherit' });
-
-                executeMain.on('exit', (code) => {
-                    if (code !== 0) {
-                        console.error(`./main process exited with code ${code}`);
-                    }
-                });
-            });
-
-            make.on('error', (err) => {
-                console.error('Error executing make:', err);
-            });
-        }
-
-*/
 
 async Start(){
     await this.initializeModelPath();
