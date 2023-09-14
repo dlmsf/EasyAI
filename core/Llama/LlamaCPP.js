@@ -3,25 +3,50 @@ import path , { join } from 'path';
 import https from 'https';
 import {exec, spawn} from 'child_process'
 import findDirectory from '../../useful/findDirectory.js';
+import http from 'http'
 
 async function CompletionPostRequest(bodyObject) {
-    const url = "http://localhost:8080/completion";
+    const url = new URL("http://localhost:8080/completion");
+
     const options = {
         method: 'POST',
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname,
         headers: {
             'Content-Type': 'application/json;charset=UTF-8'
-        },
-        body: JSON.stringify(bodyObject)
+        }
     };
 
-    try {
-        const response = await fetch(url, options);
-        const data = await response.json();
-        return data; 
-    } catch (error) {
-        console.error("Erro no CompletationPostRequest()", error);
-        throw error;
-    }
+    return new Promise((resolve, reject) => {
+        const req = http.request(options, (res) => {
+            let data = '';
+
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    try {
+                        resolve(JSON.parse(data));
+                    } catch (error) {
+                        reject(new Error("Failed to parse response as JSON: " + data));
+                    }
+                } else {
+                    reject(new Error(`Request failed with status ${res.statusCode}: ${data}`));
+                }
+            });
+        });
+
+        req.on('error', (error) => {
+            console.error("Erro no CompletationPostRequest()", error);
+            reject(error);
+        });
+
+        req.write(JSON.stringify(bodyObject));
+        req.end();
+    });
 }
 
 class LlamaCPP {
