@@ -31,6 +31,7 @@ async function CompletionPostRequest(bodyObject) {
                         console.log("Received streamed message:", message);
                     } catch (error) {
                         console.error("Failed to parse a streamed chunk as JSON:", chunk);
+                        console.log(chunk.toString())
                     }
                 }
             });
