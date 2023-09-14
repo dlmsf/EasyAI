@@ -13,13 +13,17 @@ class LlamaCPP {
         }
         this.ModelLoaded = false;
         this.llamaCPP_installed = false
+
+        
+        //função geral que engloba essas duas + o turn on do llama.cpp server
         this.initializeModelPath();
         this.initializeLlamaCPPRepo()
     }
 
-async Generate(prompt = 'Once upon a time') {
-    if (this.ModelLoaded && this.llamaCPP_installed) {
-        let cpp_path = await findDirectory(process.cwd(), 'llama.cpp');
+
+/*
+
+let cpp_path = await findDirectory(process.cwd(), 'llama.cpp');
         if (cpp_path) {
             console.log('Executing command line...');
 
@@ -45,6 +49,15 @@ async Generate(prompt = 'Once upon a time') {
                 console.error('Error executing make:', err);
             });
         }
+
+*/
+
+
+async Generate(prompt = 'Once upon a time') {
+    if (this.ModelLoaded && this.llamaCPP_installed) {
+
+        //binding na API
+        
     } else {
         console.error('Erro no LlamaCPP.Generate() | Modelo não carregado ou llama.cpp não encontrado');
         return false;
