@@ -27,7 +27,11 @@ async function CompletionPostRequest(bodyObject) {
 
                 if (bodyObject.stream) {
                     try {
-                        const message = JSON.parse(chunk.toString());
+                        let data = chunk.toString()
+                        if (data.startsWith("data: ")) {
+                            data = data.substring("data: ".length);
+                        }
+                        const message = JSON.parse(data);
                         console.log("Received streamed message:", message);
                     } catch (error) {
                         console.error("Failed to parse a streamed chunk as JSON:", chunk);
