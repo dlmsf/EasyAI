@@ -21,7 +21,6 @@ async function CompletionPostRequest(bodyObject) {
     return new Promise((resolve, reject) => {
         const req = http.request(options, (res) => {
             let data = '';
-            let stream_finaldata = ''
             let final_text = ''
 
             res.on('data', (chunk) => {
@@ -38,12 +37,13 @@ async function CompletionPostRequest(bodyObject) {
                             stream.content = final_text
                             resolve(stream)
                         } else {
+                            //Aqui inserir a maneira de cuspir esses stream_event 
+                            //para forada função sem perder o resolve final com o objeto completo
                             final_text += stream.content
                         }
-                        console.log("Received streamed message:", stream);
+                        //console.log("Received streamed message:", stream);
                     } catch (error) {
-                        console.error("Failed to parse a streamed chunk as JSON:", chunk);
-                        console.log(chunk.toString())
+                        console.error("Failed to parse a streamed chunk as JSON:", chunk.toString());
                     }
                 }
             });
