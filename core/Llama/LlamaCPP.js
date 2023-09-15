@@ -22,6 +22,7 @@ async function CompletionPostRequest(bodyObject) {
         const req = http.request(options, (res) => {
             let data = '';
             let stream_finaldata = ''
+            let final_text = ''
 
             res.on('data', (chunk) => {
                 data += chunk;
@@ -34,9 +35,12 @@ async function CompletionPostRequest(bodyObject) {
                         }
                         stream = JSON.parse(stream);
                         if(stream.generation_settings){
+                            stream.content = final_text
                             resolve(stream)
+                        } else {
+                            final_text += stream.content
                         }
-                        console.log("Received streamed message:", message);
+                        console.log("Received streamed message:", stream);
                     } catch (error) {
                         console.error("Failed to parse a streamed chunk as JSON:", chunk);
                         console.log(chunk.toString())
