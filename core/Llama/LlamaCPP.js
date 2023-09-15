@@ -32,7 +32,7 @@ async function CompletionPostRequest(bodyObject) {
                         if (stream.startsWith("data: ")) {
                             stream = stream.substring("data: ".length);
                         }
-                        const message = JSON.parse(stream);
+                        stream = JSON.parse(stream);
                         if(stream.generation_settings){
                             resolve(stream)
                         }
