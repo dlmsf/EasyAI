@@ -16,6 +16,10 @@ static ModelManager = {
 
 }
 
+static Sleep = (ms) => {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 static Server = EasyAI_Server
 
 }
