@@ -20,7 +20,7 @@ async Generate(prompt = 'Once upon a time', config = { stream: false, retryLimit
                 return result;
             }
             
-            await EasyAI.sleep(3000);
+            await EasyAI.Sleep(3000);
             
             attempts++;
 
