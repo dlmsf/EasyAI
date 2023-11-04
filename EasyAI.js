@@ -1,4 +1,3 @@
-import EasyAI_Server from "./core/EasyAI_Server.js"
 import LlamaCPP from "./core/Llama/LlamaCPP.js"
 
 class EasyAI {
@@ -44,8 +43,6 @@ static ModelManager = {
 static Sleep = async (ms) => {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
-
-static Server = EasyAI_Server
 
 }
 
