@@ -1,5 +1,5 @@
 import http from 'http';
-import EasyAI from './EasyAI.js';
+import EasyAI from '../EasyAI.js';
 import { networkInterfaces } from 'os';
 import { URL } from 'url';
 

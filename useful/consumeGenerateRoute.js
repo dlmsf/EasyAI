@@ -1,30 +1,49 @@
 import http from 'http';
+import https from 'https';
 
-// Function to consume the /generate route
+//Função utlitaria de consumo da rota /generate do EasyAI Server
+
+// verificação se é um IP
+function isIpAddress(serverUrl) {
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(serverUrl);
+}
+
 function consumeGenerateRoute({
   serverUrl,
   port,
   prompt,
-  token = '', // Optional token, default to an empty string if not provided
+  token = '',
   config = {},
   onData = () => {}
 }) {
   return new Promise((resolve, reject) => {
-    // Merge user-provided config with defaults
+
+    const isIp = isIpAddress(serverUrl);
+
+    const protocol = isIp ? http : https;
+
+    if (isIp && !port) {
+      port = 80;
+    }
+
+    if (!isIp) {
+      port = 443;
+    }
+
     const finalConfig = {
       stream: true,
       retryLimit: 60000,
       ...config
     };
 
-    // Prepare the request data with the optional token included only if provided
     const requestData = {
       prompt,
-      ...(token && { token }), // Spread token only if it's truthy
+      ...(token && { token }),
       config: finalConfig
     };
 
     const postData = JSON.stringify(requestData);
+
     const options = {
       hostname: serverUrl,
       port,
@@ -36,28 +55,23 @@ function consumeGenerateRoute({
       }
     };
 
-    // Create the POST request to the server
-    const req = http.request(options, (res) => {
+    const req = protocol.request(options, (res) => {
       let finalData = '';
 
-      // Handle the stream of data
       res.on('data', (chunk) => {
         const chunkData = chunk.toString();
         try {
           const parsedChunk = JSON.parse(chunkData);
-          onData(parsedChunk); // Invoke the callback with the parsed chunk
+          onData(parsedChunk);
         } catch (error) {
-          // Accumulate non-JSON chunks (possible final data)
           finalData += chunkData;
         }
       });
 
       res.on('end', () => {
         try {
-          // Attempt to parse and resolve the final data
           resolve(JSON.parse(finalData));
         } catch (error) {
-          // Resolve with the raw data if JSON parsing fails
           resolve(finalData);
         }
       });
@@ -67,20 +81,9 @@ function consumeGenerateRoute({
       reject(error);
     });
 
-    // Send the request with the post data
     req.write(postData);
     req.end();
   });
 }
 
-// Export the function
 export default consumeGenerateRoute;
-
-/*
-// Example usage
-const serverUrl = 'ip-of-server'; // Replace with your server's IP
-const port = 4000; // Replace with your server's port
-const prompt = 'the text below is a very little motivacional message';
-
-console.log(await consumeGenerateRoute({serverUrl : serverUrl,port : port,prompt : prompt,onData : (token) => console.log(token)}))
-*/

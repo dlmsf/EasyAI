@@ -1,4 +1,4 @@
-import EasyAI_Server from "./EasyAI_Server.js";
+import EasyAI_Server from "./core/EasyAI_Server.js";
 import LlamaCPP from "./core/Llama/LlamaCPP.js"
 import consumeGenerateRoute from "./useful/consumeGenerateRoute.js";
 
