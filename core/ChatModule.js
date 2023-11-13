@@ -14,7 +14,7 @@ class ChatModule {
     this.addToChatHistory('User', userMessage);
     process.stdout.write('AI : '); // Print the AI tag before starting the generation
     const aiMessage = await this.aiGenerate(
-      `The text below is a conversation between an AI Assistant and a User\n\n${this.formatChatHistory()}\nUser: ${userMessage}`,
+      `You are a helpful assistant and have a objective to help the user generating the next AI message \n\n${this.formatChatHistory()}\nUser: ${userMessage}`,
       { stream: true },
       (token) => {
         if (this.terminalTestActive) {
