@@ -3,14 +3,14 @@ import LlamaCPP from "./core/Llama/LlamaCPP.js"
 import consumeGenerateRoute from "./useful/consumeGenerateRoute.js";
 
 class EasyAI {
-    constructor(config = {server_url : '',server_port : 4000,server_token : '',llama : {llama_model : ''}}){
+    constructor(config = {server_url : '',server_port : 4000,server_token : '',llama : {llama_model : '',gpu_layers : undefined}}){
 
         this.ServerURL = config.server_url || null
         this.ServerPORT = config.server_port || 4000
         this.ServerTOKEN = config.server_token || null
 
         if(!this.ServerURL){
-            this.LlamaCPP = new LlamaCPP({modelpath : config.llama.llama_model})
+            this.LlamaCPP = new LlamaCPP({modelpath : config.llama.llama_model,gpu_layers : config.llama.gpu_layers})
         }
     }
 

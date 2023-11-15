@@ -75,12 +75,13 @@ async function CompletionPostRequest(bodyObject,config,streamCallback) {
 }
 
 class LlamaCPP {
-    constructor(config = {modelpath : ''}) {
+    constructor(config = {modelpath : '',gpu_layers : undefined}) {
         if (config.modelpath) {
             this.ModelPath = path.join(process.cwd(), config.modelpath);
         } else {
             this.ModelPath = '';
         }
+        this.GPU_Layers = config.gpu_layers || undefined
         this.ModelLoaded = false;
         this.llamaCPP_installed = false
         this.ServerOn = false
@@ -112,6 +113,10 @@ async LlamaServer(){
             }
 
             let mainArgs = ['-m', this.ModelPath, '-c',2048];
+            if(this.GPU_Layers && typeof this.GPU_Layers == 'number'){
+                mainArgs.push('-ngl')
+                mainArgs.push(this.GPU_Layers)
+            }
             let executeMain = spawn('./server', mainArgs, { cwd: cpp_path, stdio: 'inherit' });
 
             //Caso o server tenah sido ligado com sucesso setar a propriedade this.ServerOn = true, e inserir a condição no generat
