@@ -11,7 +11,7 @@ class EasyAI {
 
 
         if(!this.ServerURL){
-            this.LlamaCPP = new LlamaCPP({modelpath : (config.llama.llama_model) ? config.llama.llama_model : undefined,gpu_layers : (config.llama.gpu_layers) ? config.llama.gpu_layers : undefined})
+            this.LlamaCPP = new LlamaCPP({modelpath : (config.llama) ? config.llama.llama_model : undefined,gpu_layers : (config.llama) ? config.llama.gpu_layers : undefined})
         }
     }
 
