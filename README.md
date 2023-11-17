@@ -2,10 +2,10 @@
 
 ## Requirements
 - gcc (GCC) 11.2.1 | CentOS7.x
-   `sudo yum install -y centos-release-scl`
-    `yum install devtoolset-11`
-    `source /opt/rh/devtoolset-11/enable`
-    `gcc --version`
+  1. Install scl repo - `sudo yum install -y centos-release-scl`
+  2. Install devtoolset 11 - `sudo yum install devtoolset-11`
+  3. Enable the GCC version - `source /opt/rh/devtoolset-11/enable`
+  4. Check the version - `gcc --version`
 
 ## Install
 ```
