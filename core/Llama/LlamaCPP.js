@@ -83,7 +83,7 @@ class LlamaCPP {
         }
         this.GPU_Layers = config.gpu_layers || undefined
         this.Threads = config.threads || undefined
-        this.LoraPath = config.lorapath || undefined
+        this.LoraPath = config.lora || undefined
         this.ModelLoaded = false;
         this.llamaCPP_installed = false
         this.ServerOn = false
