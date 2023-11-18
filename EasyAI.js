@@ -3,7 +3,7 @@ import LlamaCPP from "./core/Llama/LlamaCPP.js"
 import consumeGenerateRoute from "./useful/consumeGenerateRoute.js";
 
 class EasyAI {
-    constructor(config = {server_url : '',server_port : 4000,server_token : '',llama : {llama_model : '',gpu_layers : undefined,threads : undefined}}){
+    constructor(config = {server_url : '',server_port : 4000,server_token : '',llama : {llama_model : '',gpu_layers : undefined,threads : undefined,lora : undefined}}){
 
         this.ServerURL = config.server_url || null
         this.ServerPORT = config.server_port || 4000
@@ -11,7 +11,7 @@ class EasyAI {
 
 
         if(!this.ServerURL){
-            this.LlamaCPP = new LlamaCPP({modelpath : (config.llama) ? config.llama.llama_model : undefined,gpu_layers : (config.llama) ? config.llama.gpu_layers : undefined,threads : (config.llama) ? config.llama.threads : undefined})
+            this.LlamaCPP = new LlamaCPP({modelpath : (config.llama) ? config.llama.llama_model : undefined,gpu_layers : (config.llama) ? config.llama.gpu_layers : undefined,threads : (config.llama) ? config.llama.threads : undefined,lora : (config.llama) ? config.llama.lora : undefined})
         }
     }
 
