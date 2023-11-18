@@ -75,7 +75,7 @@ async function CompletionPostRequest(bodyObject,config,streamCallback) {
 }
 
 class LlamaCPP {
-    constructor(config = {modelpath : '',gpu_layers : undefined,threads : undefined,lora : undefined}) {
+    constructor(config = {modelpath : '',gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined}) {
         if (config.modelpath) {
             this.ModelPath = path.join(process.cwd(), config.modelpath);
         } else {
@@ -84,6 +84,7 @@ class LlamaCPP {
         this.GPU_Layers = config.gpu_layers || undefined
         this.Threads = config.threads || undefined
         this.LoraPath = config.lora || undefined
+        this.LoraBase = config.lorabase || false
         this.ModelLoaded = false;
         this.llamaCPP_installed = false
         this.ServerOn = false
@@ -124,7 +125,12 @@ async LlamaServer(){
                 mainArgs.push(this.GPU_Layers)
             }
             if(this.LoraPath){
-                mainArgs.push('--lora')
+                if(this.LoraBase){
+                    mainArgs.push('--lora-base')
+                } else {
+                    mainArgs.push('--lora')
+                }
+                
                 mainArgs.push(this.LoraPath)
             }
             
