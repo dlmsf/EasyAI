@@ -8,7 +8,9 @@
 2° - Install devtoolset 11 -> ```sudo yum install -y devtoolset-11```
 
 3° - Enable the GCC version -> ```source /opt/rh/devtoolset-11/enable``` 
+
 ℹ️ To make permanent add it to last line in `nano ~/.bashrc` and refresh with `source ~/.bashrc`
+
 
 4° - Check the version -> ```gcc --version```
 
