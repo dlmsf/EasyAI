@@ -9,7 +9,7 @@
 
 3° - Enable the GCC version -> ```source /opt/rh/devtoolset-11/enable```
 
-ℹ️ add to last line in ```nano ~/.bashrc``` and refresh with ```source ~/.bashrc``` to enable permanent
++ add to last line in ```nano ~/.bashrc``` and refresh with ```source ~/.bashrc``` to enable permanent
 
 4° - Check the version -> ```gcc --version```
 
