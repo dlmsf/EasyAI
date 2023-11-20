@@ -1,7 +1,7 @@
 # EasyAI
 
 ## Requirements
-✔️ gcc (GCC) 11.2.1 | CentOS7.x
+⚙️ gcc (GCC) 11.2.1 | CentOS7.x
 
 1° - Install scl repo -> ```sudo yum install -y centos-release-scl```
 
