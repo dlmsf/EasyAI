@@ -100,8 +100,6 @@ async Start(){
     await this.initializeModelPath();
     await this.initializeLlamaCPPRepo()
     await this.LlamaServer()
-    console.log('Finalizou o LlamaServer()')
-    console.log(this.ServerOn)
 }
 
 
@@ -179,7 +177,7 @@ executeMain(cpp_path) {
 }
 
 async Generate(prompt = 'Once upon a time',config = {logerror : false, stream : false},tokenCallback) {
-    if (this.ModelLoaded && this.llamaCPP_installed) {
+    if (this.ModelLoaded && this.llamaCPP_installed && this.ServerOn()) {
 
        return await CompletionPostRequest({prompt : prompt,...config},{},(stream) => {tokenCallback && tokenCallback(stream)})
         
