@@ -5,6 +5,10 @@ import {exec, spawn} from 'child_process'
 import findDirectory from '../../useful/findDirectory.js';
 import http from 'http'
 
+const Sleep = async (ms) => {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function CompletionPostRequest(bodyObject,config,streamCallback) {
     const url = new URL("http://localhost:8080/completion");
 
@@ -114,7 +118,8 @@ async LlamaServer() {
     console.log('Executing command line...');
     try {
         await this.runMake(cpp_path);
-        await this.executeMain(cpp_path);
+        this.executeMain(cpp_path);
+        Sleep(2500) // REMOVER ESSA PORCARIA DEPOIS NÃO TM QUE ESPERAR COM SLEEP COISA NENHUMA, TEM QUE TER UMA VERIFICAÇÃO CORRETA
         this.ServerOn = true; 
     } catch (error) {
         console.error('An error occurred:', error);
