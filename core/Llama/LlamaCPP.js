@@ -100,6 +100,7 @@ async Start(){
     await this.initializeModelPath();
     await this.initializeLlamaCPPRepo()
     await this.LlamaServer()
+    console.log('Finalizou o LlamaServer()')
 }
 
 async LlamaServer(){
@@ -170,23 +171,34 @@ async Generate(prompt = 'Once upon a time',config = {logerror : false, stream : 
 
     
 
-    async initializeLlamaCPPRepo() { 
-        const llamaCPPDir = path.join(process.cwd(), 'llama.cpp');
+    async initializeLlamaCPPRepo() {
+    const llamaCPPDir = path.join(process.cwd(), 'llama.cpp');
 
-        if (!await this.directoryExists(llamaCPPDir)) {
-            console.log('Cloning the llama.cpp repository...');
-            exec('git clone https://github.com/ggerganov/llama.cpp.git', { cwd: process.cwd() }, (error, stdout, stderr) => {
-                if (error) {
-                    console.error('Failed to clone the llama.cpp repository:', error);
-                } else {
-                    this.llamaCPP_installed = true;
-                    console.log('llama.cpp repository cloned successfully!');
+    if (!await this.directoryExists(llamaCPPDir)) {
+        console.log('Cloning the llama.cpp repository...');
+        try {
+            await this.cloneRepository();
+            this.llamaCPP_installed = true;
+            console.log('llama.cpp repository cloned successfully!');
+        } catch (error) {
+            console.error('Failed to clone the llama.cpp repository:', error);
+        }
+    } else {
+        this.llamaCPP_installed = true;
+        console.log('llama.cpp repository already exists.');
+        }
+    }
+
+    async cloneRepository() {
+    return new Promise((resolve, reject) => {
+        exec('git clone https://github.com/ggerganov/llama.cpp.git', { cwd: process.cwd() }, (error, stdout, stderr) => {
+            if (error) {
+                reject(error);
+            } else {
+                resolve(stdout);
                 }
             });
-        } else {
-            this.llamaCPP_installed = true;
-            console.log('llama.cpp repository already exists.');
-        }
+        });
     }
 
     async initializeModelPath() {
