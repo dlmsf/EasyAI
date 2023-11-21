@@ -101,58 +101,81 @@ async Start(){
     await this.initializeLlamaCPPRepo()
     await this.LlamaServer()
     console.log('Finalizou o LlamaServer()')
+    console.log(this.ServerOn)
 }
 
-async LlamaServer(){
 
+
+async LlamaServer() {
     let cpp_path = await findDirectory(process.cwd(), 'llama.cpp');
-    if (cpp_path) {
-        console.log('Executing command line...');
+    if (!cpp_path) {
+        console.error('llama.cpp directory not found.');
+        return;
+    }
 
+    console.log('Executing command line...');
+    try {
+        await this.runMake(cpp_path);
+        await this.executeMain(cpp_path);
+        this.ServerOn = true; 
+    } catch (error) {
+        console.error('An error occurred:', error);
+    }
+}
+
+runMake(cpp_path) {
+    return new Promise((resolve, reject) => {
         let make = spawn('make', ['-j'], { cwd: cpp_path, stdio: 'inherit' });
 
         make.on('exit', (code) => {
             if (code !== 0) {
-                console.error(`make process exited with code ${code}`);
-                return;
+                reject(new Error(`make process exited with code ${code}`));
+            } else {
+                resolve();
             }
-
-            let mainArgs = ['-m', this.ModelPath, '-c',this.Context];
-            if(this.Threads && typeof this.Threads == 'number'){
-                mainArgs.push('-t')
-                mainArgs.push(this.Threads)
-            }
-            if(this.GPU_Layers && typeof this.GPU_Layers == 'number'){
-                mainArgs.push('-ngl')
-                mainArgs.push(this.GPU_Layers)
-            }
-            if(this.LoraPath){
-                if(this.LoraBase){
-                    mainArgs.push('--lora-base')
-                } else {
-                    mainArgs.push('--lora')
-                }
-                
-                mainArgs.push(this.LoraPath)
-            }
-            
-            let executeMain = spawn('./server', mainArgs, { cwd: cpp_path, stdio: 'inherit' });
-
-            //Caso o server tenah sido ligado com sucesso setar a propriedade this.ServerOn = true, e inserir a condição no generat
-
-            executeMain.on('exit', (code) => {
-                if (code !== 0) {
-                    console.error(`./main process exited with code ${code}`);
-                }
-            });
         });
 
         make.on('error', (err) => {
-            console.error('Error executing make:', err);
+            reject(new Error('Error executing make:', err));
         });
-    }
+    });
+}
 
+executeMain(cpp_path) {
+    return new Promise((resolve, reject) => {
+        let mainArgs = ['-m', this.ModelPath, '-c', this.Context];
+        if(this.Threads && typeof this.Threads == 'number'){
+            mainArgs.push('-t')
+            mainArgs.push(this.Threads)
+        }
+        if(this.GPU_Layers && typeof this.GPU_Layers == 'number'){
+            mainArgs.push('-ngl')
+            mainArgs.push(this.GPU_Layers)
+        }
+        if(this.LoraPath){
+            if(this.LoraBase){
+                mainArgs.push('--lora-base')
+            } else {
+                mainArgs.push('--lora')
+            }
+            
+            mainArgs.push(this.LoraPath)
+        }
 
+        let executeMain = spawn('./server', mainArgs, { cwd: cpp_path, stdio: 'inherit' });
+
+        executeMain.on('exit', (code) => {
+            if (code !== 0) {
+                reject(new Error(`./main process exited with code ${code}`));
+            } else {
+                resolve();
+            }
+        });
+
+        executeMain.on('error', (err) => {
+            reject(new Error('Error executing ./main:', err));
+        });
+    });
 }
 
 async Generate(prompt = 'Once upon a time',config = {logerror : false, stream : false},tokenCallback) {
