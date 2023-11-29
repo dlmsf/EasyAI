@@ -18,7 +18,11 @@ class EasyAI {
         }
     }
 
-async Generate(prompt = 'Once upon a time', config = {logerror : false, stream: false, retryLimit: 420000,tokenCallback : () => {}}) {
+async Generate(prompt = 'Once upon a time', config = {logerror : false, stream: true, retryLimit: 420000,tokenCallback : () => {}}) {
+
+        if(!config.stream){
+            config.stream = true
+        }
 
         if(!config.tokenCallback){
             config.tokenCallback = () => {}
