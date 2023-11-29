@@ -18,11 +18,18 @@ class EasyAI {
         }
     }
 
-async Generate(prompt = 'Once upon a time', config = {logerror : false, stream: false, retryLimit: 420000 }, tokenCallback = (token) => { }) {
+async Generate(prompt = 'Once upon a time', config = {logerror : false, stream: false, retryLimit: 420000,tokenCallback : () => {}}) {
+
+        if(!config.tokenCallback){
+            config.tokenCallback = () => {}
+            config.stream = false
+        } else {
+            config.stream = true
+        }
 
         if(this.ServerURL){
 
-            return await consumeGenerateRoute({serverUrl : this.ServerURL,port : this.ServerPORT,prompt : prompt,token : this.ServerTOKEN,config : config,onData : tokenCallback})
+            return await consumeGenerateRoute({serverUrl : this.ServerURL,port : this.ServerPORT,prompt : prompt,token : this.ServerTOKEN,config : config,onData : config.tokenCallback})
 
         } else {
 
@@ -32,7 +39,7 @@ async Generate(prompt = 'Once upon a time', config = {logerror : false, stream: 
             const retryLimit = config.retryLimit !== undefined ? config.retryLimit : 420000;
     
             while ((Date.now() - startTime) < retryLimit) {
-                const result = await this.LlamaCPP.Generate(prompt, config, tokenCallback);
+                const result = await this.LlamaCPP.Generate(prompt, config, config.tokenCallback);
                 if (result !== false) {
                     return result;
                 }
