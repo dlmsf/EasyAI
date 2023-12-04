@@ -79,7 +79,7 @@ async function CompletionPostRequest(bodyObject,config,streamCallback) {
 }
 
 class LlamaCPP {
-    constructor(config = {modelpath : '',gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined}) {
+    constructor(config = {modelpath : '',gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined,mmap : undefined}) {
         if (config.modelpath) {
             this.ModelPath = path.join(process.cwd(), config.modelpath);
         } else {
@@ -90,6 +90,7 @@ class LlamaCPP {
         this.Threads = config.threads || undefined
         this.Slots = config.slots || undefined
         this.Mlock = config.mlock || false
+        this.Mmap = config.mmap || false
         this.LoraPath = config.lora || undefined
         this.LoraBase = config.lorabase || false
         this.ModelLoaded = false;
@@ -159,6 +160,9 @@ executeMain(cpp_path) {
         }
         if(this.Mlock){
             mainArgs.push('--mlock')
+        }
+        if(this.Mlock){
+            mainArgs.push('--no-mmap')
         }
         if(this.Slots && typeof this.Slots == 'number' && this.Slots > 0){
             mainArgs.push('-np')
