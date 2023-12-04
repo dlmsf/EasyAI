@@ -14,9 +14,20 @@ class ChatModule {
         this.Chats[chatindex].NewMessage(sender,content,config = {id : undefined,time : false})
 
     }
+
+    NewMessageByID(chatId, sender, content, config = {id: undefined, time: false}) {
+        const chat = this.Chats.find(chat => chat.ID === chatId);
+        if (chat) {
+            chat.NewMessage(sender, content, config)
+        }
+    }
  
     GetChatHistorical(index){
         return this.Chats[index].Historical
+    }
+
+    GetChatHistoricalById(chatId) {
+        return this.Chats.find(chat => chat.ID === chatId)?.Historical || null;
     }
 
 }
