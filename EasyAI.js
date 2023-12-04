@@ -3,6 +3,7 @@ import LlamaCPP from "./core/Llama/LlamaCPP.js"
 import consumeGenerateRoute from "./useful/consumeGenerateRoute.js";
 import ChatModule from "./core/ChatModule/ChatModule.js";
 import isNonEmptyFunction from "./useful/isNonEmptyFunction.js";
+import renameProperty from './useful/renameProperty.js'
 
 class EasyAI {
     constructor(config = {server_url : '',server_port : 4000,server_token : '',llama : {llama_model : '',gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined}}){
@@ -39,8 +40,9 @@ async Generate(prompt = 'Once upon a time', config = {logerror : false, stream: 
             const retryLimit = config.retryLimit !== undefined ? config.retryLimit : 420000;
     
             while ((Date.now() - startTime) < retryLimit) {
-                const result = await this.LlamaCPP.Generate(prompt, config, config.tokenCallback);
+                let result = await this.LlamaCPP.Generate(prompt, config, config.tokenCallback);
                 if (result !== false) {
+                    result = renameProperty(result,'content','full_text')
                     return result;
                 }
                 
