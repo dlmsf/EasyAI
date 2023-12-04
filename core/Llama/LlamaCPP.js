@@ -79,7 +79,7 @@ async function CompletionPostRequest(bodyObject,config,streamCallback) {
 }
 
 class LlamaCPP {
-    constructor(config = {modelpath : '',gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined}) {
+    constructor(config = {modelpath : '',gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined}) {
         if (config.modelpath) {
             this.ModelPath = path.join(process.cwd(), config.modelpath);
         } else {
@@ -88,6 +88,7 @@ class LlamaCPP {
         this.Context = (config.context) ? ((typeof config.context == 'number') ? config.context : 2048) : 2048
         this.GPU_Layers = config.gpu_layers || undefined
         this.Threads = config.threads || undefined
+        this.Slots = config.slots || undefined
         this.LoraPath = config.lora || undefined
         this.LoraBase = config.lorabase || false
         this.ModelLoaded = false;
@@ -154,6 +155,10 @@ executeMain(cpp_path) {
         if(this.GPU_Layers && typeof this.GPU_Layers == 'number'){
             mainArgs.push('-ngl')
             mainArgs.push(this.GPU_Layers)
+        }
+        if(this.Slots && typeof this.Slots == 'number' && this.Slots > 0){
+            mainArgs.push('-np')
+            mainArgs.push(this.Slots)
         }
         if(this.LoraPath){
             if(this.LoraBase){
