@@ -6,7 +6,7 @@ import isNonEmptyFunction from "./useful/isNonEmptyFunction.js";
 import renameProperty from './useful/renameProperty.js'
 
 class EasyAI {
-    constructor(config = {server_url : '',server_port : 4000,server_token : '',llama : {llama_model : '',gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined}}){
+    constructor(config = {server_url : '',server_port : 4000,server_token : '',llama : {llama_model : '',gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined}}){
 
         this.ChatModule = new ChatModule()
 
@@ -16,7 +16,16 @@ class EasyAI {
 
 
         if(!this.ServerURL){
-            this.LlamaCPP = new LlamaCPP({modelpath : (config.llama) ? config.llama.llama_model : undefined,gpu_layers : (config.llama) ? config.llama.gpu_layers : undefined,threads : (config.llama) ? config.llama.threads : undefined,lora : (config.llama) ? config.llama.lora : undefined,lorabase : (config.llama) ? config.llama.lorabase : undefined,context : (config.llama) ? config.llama.context : undefined,slots : (config.llama) ? config.llama.slots : undefined})
+            this.LlamaCPP = new LlamaCPP({
+                modelpath : (config.llama) ? config.llama.llama_model : undefined,
+                gpu_layers : (config.llama) ? config.llama.gpu_layers : undefined,
+                threads : (config.llama) ? config.llama.threads : undefined,
+                lora : (config.llama) ? config.llama.lora : undefined,
+                lorabase : (config.llama) ? config.llama.lorabase : undefined,
+                context : (config.llama) ? config.llama.context : undefined,
+                slots : (config.llama) ? config.llama.slots : undefined,
+                mlock : (config.llama) ? config.llama.mlock : undefined
+            })
         }
     }
 
