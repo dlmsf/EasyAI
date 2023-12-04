@@ -161,7 +161,7 @@ executeMain(cpp_path) {
         if(this.Mlock){
             mainArgs.push('--mlock')
         }
-        if(this.Mlock){
+        if(this.Mmap){
             mainArgs.push('--no-mmap')
         }
         if(this.Slots && typeof this.Slots == 'number' && this.Slots > 0){
