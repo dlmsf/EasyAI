@@ -33,7 +33,8 @@ class OpenAI {
             model: "gpt-3.5-turbo-instruct",
             prompt: prompt,
             stream: !!config.tokenCallback,
-            ...(config.max_tokens && {max_tokens: config.max_tokens})
+            ...(config.max_tokens && {max_tokens: config.max_tokens}),
+            ...(config.stop && {stop: config.stop})
         };
 
         const options = {
