@@ -273,7 +273,6 @@ async Generate(prompt = 'Once upon a time',config = {logerror : false, stream : 
             if (shouldDownload) {
                 await this.loadSampleModel(modelsDir);
                 this.ModelPath = path.join(process.cwd(), this.ModelPath);
-                await Sleep(1000)
             } else {
                 console.log('No Llama Model was loaded.');
             }
@@ -282,9 +281,9 @@ async Generate(prompt = 'Once upon a time',config = {logerror : false, stream : 
 
     async loadSampleModel(modelsDir) {
         const downloadURL = 'https://huggingface.co/TheBloke/Llama-2-7b-Chat-GGUF/resolve/main/llama-2-7b-chat.Q3_K_L.gguf';
-        const destPath = join(modelsDir, 'llama-2-7b-chat.Q3_K_L.gguf');
+        const destPath = modelsDir
         await this.downloadFile(downloadURL, destPath);
-        this.ModelPath = destPath;
+        this.ModelPath = await this.getLargestGGUF(modelsDir);
         console.log(`\nLlama Model successfully downloaded and loaded from: ${this.ModelPath}`);
         this.ModelLoaded = true;
     }
