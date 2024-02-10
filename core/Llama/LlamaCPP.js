@@ -272,7 +272,6 @@ async Generate(prompt = 'Once upon a time',config = {logerror : false, stream : 
             const shouldDownload = await this.promptDownloadModel();
             if (shouldDownload) {
                 await this.loadSampleModel(modelsDir);
-                this.ModelPath = path.join(process.cwd(), this.ModelPath);
             } else {
                 console.log('No Llama Model was loaded.');
             }
