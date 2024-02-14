@@ -7,7 +7,7 @@ import renameProperty from './useful/renameProperty.js'
 import OpenAI from './core/OpenAI.js'
 
 class EasyAI {
-    constructor(config = {openai_token : '',server_url : '',server_port : 4000,server_token : '',llama : {llama_model : '',gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined,mmap : undefined}}){
+    constructor(config = {openai_token : '',server_url : '',server_port : 4000,server_token : '',llama : {llama_model : '',cuda : false,gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined,mmap : undefined}}){
 
         this.ChatModule = new ChatModule()
         this.OpenAI = (config.openai_token) ? new OpenAI(config.openai_token) : null
@@ -20,6 +20,7 @@ class EasyAI {
         if(!this.ServerURL && !this.OpenAI){
             this.LlamaCPP = new LlamaCPP({
                 modelpath : (config.llama) ? config.llama.llama_model : undefined,
+                cuda : (config.llama) ? config.llama.cuda : undefined,
                 gpu_layers : (config.llama) ? config.llama.gpu_layers : undefined,
                 threads : (config.llama) ? config.llama.threads : undefined,
                 lora : (config.llama) ? config.llama.lora : undefined,
