@@ -16,7 +16,7 @@ class TerminalHUD {
     });
   }
 
-  async displayMenu(menuGenerator, clearScreen = false) {
+  async displayMenu(menuGenerator, clearScreen = true) {
     if (clearScreen) {
       console.clear();
     }
