@@ -28,7 +28,7 @@ class Git {
       return await this.executeGitCommand(['checkout', hash], path);
     } catch (error) {
       console.error('Checkout failed:', error);
-      throw error;
+      return
     }
   }
 
