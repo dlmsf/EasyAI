@@ -16,12 +16,14 @@ class TerminalHUD {
     });
   }
 
-  async displayMenu(menuGenerator, clearScreen = true) {
-    if (clearScreen) {
+  async displayMenu(menuGenerator,config = {props : {},clearScreen : true}) {
+    if(config.clearScreen == undefined){config.clearScreen = true}
+    if(config.props == undefined){config.props = {}}
+    if (config.clearScreen == true) {
       console.clear();
     }
 
-    const menu = menuGenerator(); // Generate menu using external state
+    const menu = menuGenerator(config.props); // Generate menu using external state
 
     console.log(menu.title);
     menu.options.forEach((option, index) => {
