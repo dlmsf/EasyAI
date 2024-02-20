@@ -1,6 +1,6 @@
 import ServerMenu from "./ServerMenu.js";
-import SetupMenu from "./MenuCLI.js";
-import SandboxInit from "./Sandbox/SandboxInit.js";
+import MenuCLI from "./MenuCLI.js";
+import SandboxMenu from "./Sandbox/SandboxMenu.js";
 
 const StartMenu = () => ({
     title : `⚙️ EasyAI
@@ -9,13 +9,13 @@ options : [
     {
     name : '◆ EasyAI Server',
     action : () => {
-        SetupMenu.displayMenu(ServerMenu)
+        MenuCLI.displayMenu(ServerMenu)
     }
     },
     {
     name : '☕ Sandbox',
     action : () => {
-        SetupMenu.displayMenu(SandboxInit)
+        MenuCLI.displayMenu(SandboxMenu)
         }
     }
      ]

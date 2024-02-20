@@ -2,7 +2,7 @@ import EasyAI from '../../../EasyAI.js'
 import StartMenu from '../StartMenu.js'
 import SetupMenu from '../MenuCLI.js'
 
-const SandboxInit = () => ({
+const SandboxMenu = () => ({
     title : `• Sandbox •
 `,
 options : [
@@ -28,4 +28,4 @@ options : [
 
 
 
-export default SandboxInit
+export default SandboxMenu

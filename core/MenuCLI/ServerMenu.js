@@ -1,6 +1,6 @@
 import EasyAI from '../../EasyAI.js'
 import StartMenu from './StartMenu.js'
-import SetupMenu from './MenuCLI.js'
+import MenuCLI from './MenuCLI.js'
 
 const ServerMenu = () => ({
     title : `• EasyAI Server •
@@ -22,7 +22,7 @@ options : [
     {
         name : '← Voltar',
         action : () => {
-            SetupMenu.displayMenu(StartMenu)
+            MenuCLI.displayMenu(StartMenu)
             }
         }
      ]

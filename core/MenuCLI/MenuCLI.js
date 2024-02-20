@@ -3,8 +3,8 @@
 import TerminalHUD from "../TerminalHUD.js";
 import StartMenu from "./StartMenu.js";
 
-const SetupMenu = new TerminalHUD()
+const MenuCLI = new TerminalHUD()
 
-export default SetupMenu
+export default MenuCLI
 
-SetupMenu.displayMenu(StartMenu)
+MenuCLI.displayMenu(StartMenu)
