@@ -18,7 +18,11 @@ function consumeGenerateRoute({
 }) {
   return new Promise((resolve, reject) => {
 
+    if(serverUrl != 'localhost'){
     const isIp = isIpAddress(serverUrl);
+    } else {
+      const isIp = true
+    }
 
     const protocol = isIp ? http : https;
 
