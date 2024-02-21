@@ -1,27 +1,37 @@
 import StartMenu from '../StartMenu.js'
 import MenuCLI from '../MenuCLI.js'
+import SandboxMenu from './SandboxMenu.js'
 
+let instance_config = {server_url : 'localhost'}
 
 const SandboxConfig = () => ({
     title : `• Sandbox Config •
+
+URL : ${instance_config.server_url}
 `,
 options : [
     {
-    name : 'Servidor Local',
+        name : '✅ Conectar',
+        action : () => {
+            MenuCLI.displayMenu(SandboxMenu,{props : instance_config})
+        }
+        },
+    {
+    name : `Alterar URL`,
     action : () => {
     }
     },
     {
-    name : 'Servidor Remoto',
+    name : 'Configurar Porta',
     action : () => {
-        }
-        },
+    }
+    },
     {
-        name : '← Voltar',
-        action : () => {
-            MenuCLI.displayMenu(StartMenu)
-            }
-        }
+    name : '← Voltar',
+    action : () => {
+    MenuCLI.displayMenu(StartMenu)
+    }
+    }
      ]
 
 })
