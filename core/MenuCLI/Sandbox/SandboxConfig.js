@@ -1,26 +1,21 @@
-import EasyAI from '../../../EasyAI.js'
 import StartMenu from '../StartMenu.js'
 import MenuCLI from '../MenuCLI.js'
 
-const SandboxMenu = () => ({
-    title : `☕ Sandbox |
+
+const SandboxConfig = () => ({
+    title : `• Sandbox Config •
 `,
 options : [
     {
-    name : 'Generate',
+    name : 'Servidor Local',
     action : () => {
     }
     },
     {
-    name : 'ChatGPT',
+    name : 'Servidor Remoto',
     action : () => {
         }
-    },
-    {
-    name : 'Coder',
-    action : () => {
-            }
-    },
+        },
     {
         name : '← Voltar',
         action : () => {
@@ -33,4 +28,4 @@ options : [
 
 
 
-export default SandboxMenu
+export default SandboxConfig
