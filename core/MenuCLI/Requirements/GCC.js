@@ -46,15 +46,19 @@ class GCC {
             console.log('Checking GCC version...');
             const version = await GCC.executeCommand('gcc --version');
             console.log(version);
-
+    
             const rl = readline.createInterface({
                 input: process.stdin,
                 output: process.stdout
             });
-
+    
             return new Promise(resolve => {
                 rl.question('Press any key to continue...', () => {
+                    // Instead of closing the readline interface which can close the process.stdin,
+                    // pause the input stream to prevent further input from being read.
+                    process.stdin.pause();
                     
+                    rl.close(); // Now it's safe to close the readline interface.
                     resolve();
                 });
             });
