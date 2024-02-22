@@ -54,7 +54,7 @@ class GCC {
 
             return new Promise(resolve => {
                 rl.question('Press any key to continue...', () => {
-                    rl.close();
+                    
                     resolve();
                 });
             });
