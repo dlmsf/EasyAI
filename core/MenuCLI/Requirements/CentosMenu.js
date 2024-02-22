@@ -10,12 +10,14 @@ options : [
     name : 'Install',
     action : async () => {
       await GCC.Install()
+      MenuCLI.displayMenu(GCCMenu)
     }
     },
     {
     name : 'Check',
     action : async () => {
        await GCC.Check()
+       MenuCLI.displayMenu(GCCMenu)
         }
     },
     {
