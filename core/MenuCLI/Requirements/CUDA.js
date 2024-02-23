@@ -65,6 +65,13 @@ class CUDA {
             }
         } catch (error) {
             console.error('An error occurred:', error);
+            console.log('Press any key to continue...');
+                   return new Promise(resolve => {
+                // Listen for a single 'keypress' event.
+                process.stdin.once('data', () => {
+                    resolve();
+                });
+            });
         }
     }
 
