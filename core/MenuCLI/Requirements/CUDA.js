@@ -17,9 +17,6 @@ class CUDA {
 
     static async Install() {
         try {
-            console.log('Installing NVIDIA driver...');
-            await CUDA.executeCommand('yum -y install nvidia-driver-latest-dkms');
-
             console.log('Downloading CUDA repository RPM...');
             await CUDA.executeCommand('wget https://developer.download.nvidia.com/compute/cuda/12.3.2/local_installers/cuda-repo-rhel7-12-3-local-12.3.2_545.23.08-1.x86_64.rpm');
 
@@ -31,6 +28,9 @@ class CUDA {
 
             console.log('Installing CUDA Toolkit...');
             await CUDA.executeCommand('yum -y install cuda-toolkit-12-3');
+
+            console.log('Installing NVIDIA driver...');
+            await CUDA.executeCommand('yum -y install nvidia-driver-latest-dkms');
 
             console.log('Checking for existing CUDA path in .bashrc...');
             const bashrcPath = os.homedir() + '/.bashrc';
