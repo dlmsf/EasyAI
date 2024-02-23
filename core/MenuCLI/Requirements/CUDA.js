@@ -43,6 +43,7 @@ class CUDA {
                 await fs.writeFile(bashrcPath, bashrcContent, 'utf8');
 
                 console.log('Please run "source ~/.bashrc" in your terminal to apply the effects.');
+                console.log('')
                 console.log('Press any key to continue...');
                 return new Promise(resolve => {
                 // Listen for a single 'keypress' event.
@@ -53,6 +54,7 @@ class CUDA {
             } else {
                 console.log('CUDA path already present in .bashrc.');
                 console.log('Please run "source ~/.bashrc" in your terminal to apply the effects.');
+                console.log('')
                 console.log('Press any key to continue...');
                    return new Promise(resolve => {
                 // Listen for a single 'keypress' event.

@@ -42,6 +42,8 @@ class GCC {
             });
             } else {
                 console.log('devtoolset-11 enable script already present in .bashrc.');
+                console.log('Please run "source ~/.bashrc" in your terminal to apply the effects.');
+                console.log('')
                 console.log('Press any key to continue...');
                return new Promise(resolve => {
                 // Listen for a single 'keypress' event.
