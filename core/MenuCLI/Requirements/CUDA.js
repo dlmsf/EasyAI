@@ -42,14 +42,24 @@ class CUDA {
                 bashrcContent += `\n${exportString}\n`;
                 await fs.writeFile(bashrcPath, bashrcContent, 'utf8');
 
-                console.log('Sourcing .bashrc to update environment...');
-                // Note: This will not affect the parent shell environment.
-                await CUDA.executeCommand('source ~/.bashrc');
+                console.log('Please run "source ~/.bashrc" in your terminal to apply the effects.');
+                console.log('Press any key to continue...');
+                return new Promise(resolve => {
+                // Listen for a single 'keypress' event.
+                process.stdin.once('data', () => {
+                    resolve();
+                });
+            });
             } else {
                 console.log('CUDA path already present in .bashrc.');
-                console.log('Sourcing .bashrc to update environment...');
-                // Note: This will not affect the parent shell environment.
-                await CUDA.executeCommand('source ~/.bashrc');
+                console.log('Please run "source ~/.bashrc" in your terminal to apply the effects.');
+                console.log('Press any key to continue...');
+                   return new Promise(resolve => {
+                // Listen for a single 'keypress' event.
+                process.stdin.once('data', () => {
+                    resolve();
+                });
+            });
             }
         } catch (error) {
             console.error('An error occurred:', error);
