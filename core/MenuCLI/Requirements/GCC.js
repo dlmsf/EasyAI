@@ -37,6 +37,9 @@ class GCC {
                 await GCC.executeCommand('source ~/.bashrc');
             } else {
                 console.log('devtoolset-11 enable script already present in .bashrc.');
+                console.log('Sourcing .bashrc to update environment...');
+                // Note: This will not affect the parent shell environment.
+                await GCC.executeCommand('source ~/.bashrc');
             }
         } catch (error) {
             console.error('An error occurred:', error);

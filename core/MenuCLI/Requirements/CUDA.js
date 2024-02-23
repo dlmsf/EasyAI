@@ -47,6 +47,9 @@ class CUDA {
                 await CUDA.executeCommand('source ~/.bashrc');
             } else {
                 console.log('CUDA path already present in .bashrc.');
+                console.log('Sourcing .bashrc to update environment...');
+                // Note: This will not affect the parent shell environment.
+                await CUDA.executeCommand('source ~/.bashrc');
             }
         } catch (error) {
             console.error('An error occurred:', error);
