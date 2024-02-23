@@ -62,7 +62,13 @@ class CUDA {
             const version = await CUDA.executeCommand('nvcc --version');
             console.log(version);
     
-            console.log('Installation and version check complete. Press any key to continue...');
+            console.log('Press any key to continue...');
+            return new Promise(resolve => {
+                // Listen for a single 'keypress' event.
+                process.stdin.once('data', () => {
+                    resolve();
+                });
+            });
         } catch (error) {
             console.error('An error occurred:', error);
         }
