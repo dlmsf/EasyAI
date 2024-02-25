@@ -11,13 +11,8 @@ options : [
     {
     name : '⚡ Iniciar Servidor ⚡',
     action : () => {
-        if(easyai_config == {}){
-            let server = new EasyAI.Server()
-            server.start()
-        } else {
-            let server = new EasyAI.Server(easyai_config)
-            server.start()
-        }
+        let server = new EasyAI.Server(easyai_config)
+        server.start()
     }
     },
     {
