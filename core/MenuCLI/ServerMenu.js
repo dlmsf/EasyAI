@@ -37,6 +37,19 @@ options : [
                 MenuCLI.displayMenu(CustomServer) 
             }
             },
+            {
+                name : `Threads | ${easyai_config.llama ? (easyai_config.llama.threads ? easyai_config.llama.threads : 'MAX') : 'MAX'}`,
+                action : async () => {
+                    let newthreads = await MenuCLI.ask('Qntd. Threads : ')
+                    if(easyai_config.llama){
+                        easyai_config.llama.threads = newthreads
+                    } else {
+                        easyai_config.llama = {}
+                        easyai_config.llama.threads = newthreads
+                    }
+                    MenuCLI.displayMenu(CustomServer) 
+                }
+                },
     {
     name : `CUDA | ${easyai_config.llama ? (easyai_config.llama.cuda ? 'ON' : 'OFF') : 'OFF'}`,
     action : () => {
