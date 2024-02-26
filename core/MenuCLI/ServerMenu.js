@@ -3,6 +3,7 @@ import StartMenu from './StartMenu.js'
 import MenuCLI from './MenuCLI.js'
 
 let easyai_config = {}
+let server_port = 4000
 
 const CustomServer = () => ({
     title : `• EasyAI Server | Configurar Server
@@ -11,10 +12,18 @@ options : [
     {
     name : '⚡ Iniciar Servidor ⚡',
     action : () => {
-        let server = new EasyAI.Server({EasyAI_Config : easyai_config})
+        let server = new EasyAI.Server({port : server_port,EasyAI_Config : easyai_config})
         server.start()
     }
     },
+    {
+        name : `PORT | ${server_port}`,
+        action : async () => {
+            let newport = await MenuCLI.ask('Digite a nova PORTA : ')
+            server_port = newport
+            MenuCLI.displayMenu(CustomServer)    
+        }
+        },
     {
     name : `CUDA ${easyai_config.llama ? (easyai_config.llama.cuda ? '✔️' : '❌') : '❌'}`,
     action : () => {
@@ -56,6 +65,7 @@ options : [
     name : '✏️ Inicio Personalizado',
     action : () => {
         easyai_config = {}
+        server_port = 4000
         MenuCLI.displayMenu(CustomServer)
         }
     },
