@@ -19,7 +19,7 @@ class EasyAI {
 
         if(!this.ServerURL && !this.OpenAI){
             this.LlamaCPP = new LlamaCPP({
-                git_hash : (config.llama) ? config.llama.server_port : undefined,
+                server_port : (config.llama) ? config.llama.server_port : undefined,
                 git_hash : (config.llama) ? config.llama.git_hash : undefined,
                 modelpath : (config.llama) ? config.llama.llama_model : undefined,
                 cuda : (config.llama) ? config.llama.cuda : undefined,
