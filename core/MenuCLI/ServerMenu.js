@@ -6,9 +6,34 @@ import ServerSaves from './ServerSaves.js'
 let easyai_config = {}
 let easyai_port = 4000
 
-const CustomServer = () => ({
+let save_options = async () => {
+    let final_array = []
+    let saves_array = await ServerSaves.List()
+    saves_array.forEach(e => {
+        final_array.push({
+            name : e,
+            action : async () => {
+                let save = await ServerSaves.Load(e)
+                easyai_config = save.EasyAI_Config || {}
+                easyai_port = save.Port || 4000
+                MenuCLI.displayMenu(CustomServer)
+                }
+            })
+    })
+final_array.push({
+    name : '← Voltar',
+    action : () => {
+        MenuCLI.displayMenu(ServerMenu)
+        }
+    })
+return final_array
+}
+
+const CustomServer = (props) => ({
     title : `• EasyAI Server | Configurar Server
-`,
+${(props.save_message) ? `
+${props.save_message}
+` : ''}`,
 options : [
     {
     name : '⚡ Iniciar Servidor ⚡',
@@ -68,6 +93,19 @@ options : [
             }
     },
     {
+        name : '📑 SALVAR CONFIGURAÇÕES',
+        action : async  () => {
+                let name =  await MenuCLI.ask('Qual nome deseja inserir ? : ')
+                 await ServerSaves.Save(name,{port : easyai_port,EasyAI_Config : easyai_config})
+                 .then(() => {
+                    MenuCLI.displayMenu(CustomServer,{props : {save_message : '✔️ Configurações salvas com sucesso !'}})
+                 })
+                 .catch(e => {
+                    MenuCLI.displayMenu(CustomServer,{props : {save_message : '⛔ Erro ao salvar as configurações'}})
+                 })
+            }
+        },
+    {
         name : '← Voltar',
         action : () => {
             MenuCLI.displayMenu(ServerMenu)
@@ -98,8 +136,8 @@ options : [
     },
     {
         name : '📁 Saves',
-        action : () => {
-           
+        action : async () => {
+            MenuCLI.displayMenu(SavesMenu,{props : {options : await save_options()}})
             }
         },
     {
@@ -110,6 +148,12 @@ options : [
         }
      ]
 
+})
+
+const SavesMenu = (props) => ({
+    title : `• Saves •
+`,
+options : props.options
 })
 
 export default ServerMenu
