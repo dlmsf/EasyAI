@@ -15,10 +15,10 @@ let models_options = async () => {
             name : e,
             action : async () => {
                 if(easyai_config.llama){
-                    easyai_config.llama.llama_model = e
+                    easyai_config.llama.llama_model = `./${e}`
                 } else {
                     easyai_config.llama = {}
-                    easyai_config.llama.llama_model = e
+                    easyai_config.llama.llama_model = `./${e}`
                 }
                 MenuCLI.displayMenu(CustomServer)
                 }
