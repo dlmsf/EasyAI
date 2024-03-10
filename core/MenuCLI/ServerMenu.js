@@ -12,7 +12,7 @@ let models_options = async () => {
     let saves_array = await ModelsList()
     saves_array.forEach(e => {
         final_array.push({
-            name : `${e.name} | ${e.size}`,
+            name : `${e.name} | ${e.size} GB`,
             action : async () => {
                 if(easyai_config.llama){
                     easyai_config.llama.llama_model = `./models/${e.name}`
