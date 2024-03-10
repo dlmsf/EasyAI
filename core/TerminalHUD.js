@@ -37,7 +37,7 @@ class TerminalHUD {
       await chosenOption.action();
     } else {
       console.log('Invalid option, try again.');
-      await this.displayMenu(menuGenerator, clearScreen);
+      await this.displayMenu(menuGenerator);
     }
   }
 
