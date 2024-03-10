@@ -12,13 +12,13 @@ let models_options = async () => {
     let saves_array = await ModelsList()
     saves_array.forEach(e => {
         final_array.push({
-            name : e,
+            name : `${e.name} | ${e.size}`,
             action : async () => {
                 if(easyai_config.llama){
-                    easyai_config.llama.llama_model = `./models/${e}`
+                    easyai_config.llama.llama_model = `./models/${e.name}`
                 } else {
                     easyai_config.llama = {}
-                    easyai_config.llama.llama_model = `./models/${e}`
+                    easyai_config.llama.llama_model = `./models/${e.name}`
                 }
                 MenuCLI.displayMenu(CustomServer)
                 }
