@@ -11,6 +11,6 @@
     "ai": "node ./core/MenuCLI/MenuCLI.js"
   },
   "keywords": [],
-  "author": "",
+  "author": "Daniel Massud",
   "license": "ISC"
 }
