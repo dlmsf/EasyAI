@@ -16,7 +16,7 @@ class TerminalHUD {
     });
   }
 
-  async displayMenu(menuGenerator,config = {props : {},clearScreen : true}) {
+  async displayMenu(menuGenerator,config = {props : {},clearScreen : true,alert: undefined}) {
     if(config.clearScreen == undefined){config.clearScreen = true}
     if(config.props == undefined){config.props = {}}
     if (config.clearScreen == true) {
@@ -25,6 +25,9 @@ class TerminalHUD {
 
     const menu = menuGenerator(config.props);
 
+    if (config.alert) {
+      console.log(`⚠️  ${config.alert}\n`);
+    }
     console.log(menu.title);
     menu.options.forEach((option, index) => {
       console.log(`${index + 1}. ${option.name}`);
