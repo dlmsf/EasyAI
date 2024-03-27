@@ -30,8 +30,8 @@ class CUDA {
             console.log('Installing CUDA Toolkit...');
             await CUDA.executeCommand('yum -y install cuda-toolkit-12-3');
 
-            console.log('Installing NVIDIA driver...');
-            await CUDA.executeCommand('yum -y install nvidia-driver-latest-dkms');
+            //console.log('Installing NVIDIA driver...');
+            //await CUDA.executeCommand('yum -y install nvidia-driver-latest-dkms');
 
             console.log('Checking for existing CUDA path in .bashrc...');
             const bashrcPath = os.homedir() + '/.bashrc';
