@@ -1,6 +1,8 @@
 import EasyAI from '../../../EasyAI.js'
 import StartMenu from '../StartMenu.js'
 import MenuCLI from '../MenuCLI.js'
+import TerminalChat from '../../TerminalChat.js'
+import ChatPrompt from './ChatPrompt.js'
 
 const SandboxMenu = (props) => ({
     title : `☕ Sandbox | ${props.server_url}${(props.server_port) ? `:${props.server_port}` : ''}
@@ -22,7 +24,14 @@ options : [
     },
     {
     name : 'ChatGPT',
-    action : () => {
+    action : async () => {
+        MenuCLI.close()
+        console.clear()
+        let ai = new EasyAI(props)
+        new TerminalChat(async (input,displayToken) => {
+            await ai.Generate(`${ChatPrompt}User: ${input} | AI:`,{tokenCallback : async (token) => {await displayToken(token.stream.content)},stop : ['|']})
+        })
+
         }
     },
     {
