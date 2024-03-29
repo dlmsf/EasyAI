@@ -20,6 +20,7 @@ options : [
             prompt = await MenuCLI.ask('Prompt (sair/exit) : ')
             if(prompt == 'exit' || prompt == 'sair'){break}
             let result = await ai.Generate(prompt,{tokenCallback : (token) => {console.log(token)}})
+            console.log(result)
             console.log(`Tempo total : ${(result.timings.predicted_ms+result.timings.prompt_ms).toFixed(2)} ms | Tokens/Seg : ${(result.timings.predicted_per_second).toFixed(2)}`)
         }
         MenuCLI.displayMenu(SandboxMenu,{props : props})
