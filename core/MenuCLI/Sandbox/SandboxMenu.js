@@ -8,7 +8,7 @@ import Chat from '../../ChatModule/Chat.js'
 
 
 const SandboxMenu = (props) => ({
-    title : `☕ Sandbox | ${props.server_url}${(props.server_port) ? `:${props.server_port}` : ''}
+    title : `☕ Sandbox | ${props.openai ? 'OpenAI' : `${props.server_url}${(props.server_port) ? `:${props.server_port}` : ''}`}
 `,
 options : [
     {
