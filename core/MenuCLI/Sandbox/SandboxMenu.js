@@ -4,6 +4,7 @@ import MenuCLI from '../MenuCLI.js'
 import TerminalChat from '../../TerminalChat.js'
 import ChatPrompt from './ChatPrompt.js'
 import readline from 'readline';
+import Chat from '../../ChatModule/Chat.js'
 
 
 const SandboxMenu = (props) => ({
@@ -30,8 +31,15 @@ options : [
         MenuCLI.close()
         console.clear()
         let ai = new EasyAI(props)
+        const chat = new Chat()
         new TerminalChat(async (input,displayToken) => {
-            await ai.Generate(`${ChatPrompt}User: ${input} | AI:`,{tokenCallback : async (token) => {await displayToken(token.stream.content)},stop : ['|']})
+            chat.NewMessage('User: ',input)
+            let historical_prompt = ''
+            chat.Historical.forEach(e => {
+             historical_prompt = `${historical_prompt}${e.Sender}${e.Content} | `
+            })
+            let result = await ai.Generate(`${ChatPrompt}${historical_prompt}AI:`,{tokenCallback : async (token) => {await displayToken(token.stream.content)},stop : ['|']})
+            chat.NewMessage('AI: ',result.full_text)
         },{exitFunction : async () => {
             MenuCLI.rl = readline.createInterface({
                 input: process.stdin,
