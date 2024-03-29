@@ -3,6 +3,8 @@ import StartMenu from '../StartMenu.js'
 import MenuCLI from '../MenuCLI.js'
 import TerminalChat from '../../TerminalChat.js'
 import ChatPrompt from './ChatPrompt.js'
+import readline from 'readline';
+
 
 const SandboxMenu = (props) => ({
     title : `☕ Sandbox | ${props.server_url}${(props.server_port) ? `:${props.server_port}` : ''}
@@ -30,7 +32,13 @@ options : [
         let ai = new EasyAI(props)
         new TerminalChat(async (input,displayToken) => {
             await ai.Generate(`${ChatPrompt}User: ${input} | AI:`,{tokenCallback : async (token) => {await displayToken(token.stream.content)},stop : ['|']})
-        })
+        },{exitFunction : async () => {
+            MenuCLI.rl = readline.createInterface({
+                input: process.stdin,
+                output: process.stdout
+              });
+            await MenuCLI.displayMenu(SandboxMenu,{props : props})
+        }})
 
         }
     },

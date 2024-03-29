@@ -34,8 +34,9 @@ class TerminalChat {
       } else {
         console.log(`
 Chat ended.`);
-      }
-      process.exit(0);
+process.exit(0);    
+  }
+      
     });
 
     this.rl.setPrompt('User: ');
