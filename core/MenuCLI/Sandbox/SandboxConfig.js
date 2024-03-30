@@ -7,7 +7,7 @@ let instance_config = {server_url : 'localhost',server_port : 4000}
 const SandboxConfig = () => ({
     title : `• Sandbox Config •
 
-${instance_config.openai ? 'OpenAI': `URL : ${instance_config.server_url}${(instance_config.server_port) ? `:${instance_config.server_port}` : ''}`}
+${instance_config.openai_token ? 'OpenAI': `URL : ${instance_config.server_url}${(instance_config.server_port) ? `:${instance_config.server_port}` : ''}`}
 `,
 options : [
     {
@@ -20,7 +20,7 @@ options : [
     name : `Configurar URL`,
     action : async () => {
         let newurl = await MenuCLI.ask('Novo URL : ')
-        delete instance_config.openai
+        delete instance_config.openai_token
         instance_config.server_url = newurl
         delete instance_config.server_port
         MenuCLI.displayMenu(SandboxConfig)
@@ -38,7 +38,9 @@ options : [
         name : '🌟 OpenAI',
         action : async () => {
             let token = await MenuCLI.ask('OpenAI Token : ')
-            instance_config.openai = token
+            instance_config.openai_token = token
+            delete instance_config.server_port
+            delete instance_config.server_url
             MenuCLI.displayMenu(SandboxConfig)
         }
         },

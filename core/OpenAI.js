@@ -28,6 +28,7 @@ class OpenAI {
      */
 
  async Generate(prompt = 'Once upon a time', config = {}) {
+    config.max_tokens = config.max_tokens || 500
     return new Promise((resolve, reject) => {
         const data = {
             model: "gpt-3.5-turbo-instruct",
@@ -72,7 +73,7 @@ class OpenAI {
                                     fullResponse += text;
                                     config.tokenCallback({ 
                                         full_text: fullResponse,
-                                        predicted: text 
+                                        stream : {content : text}
                                     });
                                 }
                             } catch (error) {
