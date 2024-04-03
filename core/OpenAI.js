@@ -4,6 +4,7 @@ class OpenAI {
     constructor(apiToken, config = {}) {
         this.apiToken = apiToken;
         this.config = config;
+        this.model = config.model || undefined
     }
 
  /**
