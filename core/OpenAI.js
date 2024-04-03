@@ -116,9 +116,10 @@ class OpenAI {
 
 async Chat(messages = [{role : 'user',content : 'Who won the world series in 2020?'}], config = {}) {
     config.max_tokens = config.max_tokens || 500
+    config.model = config.model || 'gpt-3.5-turbo'
     return new Promise((resolve, reject) => {
         const data = {
-            model: "gpt-3.5-turbo",
+            model: config.model,
             messages : messages,
             stream: !!config.tokenCallback,
             ...(config.max_tokens && {max_tokens: config.max_tokens}),
@@ -156,7 +157,7 @@ async Chat(messages = [{role : 'user',content : 'Who won the world series in 202
                             try {
                                 const response = JSON.parse(line);
                                 if (response.choices && response.choices.length > 0) {
-                                    const text = response.choices[0].text;
+                                    const text = response.choices[0].delta.content
                                     fullResponse += text;
                                     config.tokenCallback({ 
                                         full_text: fullResponse,
@@ -207,4 +208,5 @@ export default OpenAI
 
 //const ai = new OpenAI('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')
 
-//console.log(await ai.Chat([{role : 'user',content : 'Who is obama?'}],{tokenCallback : (token) => {console.log(token)}}))
+//console.log(await ai.Chat([{role : 'user',content : 'Who is obama?'}],{model : 'gpt-4-turbo-preview',tokenCallback : (token) => {console.log(token)}}))
+//console.log(await ai.Chat([{role : 'user',content : 'Who is obama?'}]))
