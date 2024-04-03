@@ -76,7 +76,7 @@ class OpenAI {
                                     fullResponse += text;
                                     config.tokenCallback({ 
                                         full_text: fullResponse,
-                                        stream : {content : text}
+                                        stream : {content : text || ''}
                                     });
                                 }
                             } catch (error) {
@@ -170,7 +170,7 @@ async Chat(messages = [{role : 'user',content : 'Who won the world series in 202
                                     fullResponse += text;
                                     config.tokenCallback({ 
                                         full_text: fullResponse,
-                                        stream : {content : text}
+                                        stream : {content : text || ''}
                                     });
                                 }
                             } catch (error) {

@@ -7,10 +7,10 @@ import renameProperty from './useful/renameProperty.js'
 import OpenAI from './core/OpenAI.js'
 
 class EasyAI {
-    constructor(config = {openai_token : '',server_url : '',server_port : 4000,server_token : '',llama : {server_port : undefined,git_hash : undefined,llama_model : '',cuda : false,gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined,mmap : undefined}}){
+    constructor(config = {openai_token : '',openai_model : undefined,server_url : '',server_port : 4000,server_token : '',llama : {server_port : undefined,git_hash : undefined,llama_model : '',cuda : false,gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined,mmap : undefined}}){
 
         this.ChatModule = new ChatModule()
-        this.OpenAI = (config.openai_token) ? new OpenAI(config.openai_token) : null
+        this.OpenAI = (config.openai_token) ? new OpenAI(config.openai_token,{model : config.openai_model}) : null
 
         this.ServerURL = config.server_url || null
         this.ServerPORT = config.server_port || 4000

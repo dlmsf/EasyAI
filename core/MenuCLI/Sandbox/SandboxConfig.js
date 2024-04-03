@@ -4,6 +4,42 @@ import SandboxMenu from './SandboxMenu.js'
 
 let instance_config = {server_url : 'localhost',server_port : 4000}
 
+const openai_models = () => ({
+    title : `Choose the model
+`,
+options : [
+    {
+    name : 'gpt-3.5-turbo',
+    action : () => {
+        instance_config.openai_model = 'gpt-3.5-turbo'
+        MenuCLI.displayMenu(SandboxConfig)
+    }
+    },
+    {
+    name : 'gpt-4',
+    action : () => {
+        instance_config.openai_model = 'gpt-4'
+        MenuCLI.displayMenu(SandboxConfig)
+        }
+    },
+    {
+    name : 'gpt-4-turbo-preview',
+        action : () => {
+            instance_config.openai_model = 'gpt-4-turbo-preview'
+            MenuCLI.displayMenu(SandboxConfig)
+            }
+        },
+        {
+    name : 'gpt-3.5-turbo-instruct',
+            action : () => {
+                instance_config.openai_model = 'gpt-3.5-turbo-instruct'
+                MenuCLI.displayMenu(SandboxConfig)
+                }
+            }
+     ]
+
+})
+
 const SandboxConfig = () => ({
     title : `• Sandbox Config •
 
@@ -35,13 +71,14 @@ options : [
     }
     },
     {
-        name : '🌟 OpenAI',
-        action : async () => {
+    name : '🌟 OpenAI',
+    action : async () => {
             let token = await MenuCLI.ask('OpenAI Token : ')
             instance_config.openai_token = token
+
             delete instance_config.server_port
             delete instance_config.server_url
-            MenuCLI.displayMenu(SandboxConfig)
+            MenuCLI.displayMenu(openai_models)
         }
         },
 
