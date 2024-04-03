@@ -117,7 +117,7 @@ class OpenAI {
 
 async Chat(messages = [{role : 'user',content : 'Who won the world series in 2020?'}], config = {}) {
     config.max_tokens = config.max_tokens || 500
-    config.model = config.model || 'gpt-3.5-turbo'
+    config.model = config.model || this.model ? this.model :'gpt-3.5-turbo'
     return new Promise((resolve, reject) => {
         const data = {
             model: config.model,
