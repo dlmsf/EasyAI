@@ -30,9 +30,11 @@ class OpenAI {
 
  async Generate(prompt = 'Once upon a time', config = {}) {
     config.max_tokens = config.max_tokens || 500
+    config.model = config.model || this.model ? this.model :'gpt-3.5-turbo-instruct'
+    if(config.model == 'gpt-3.5-turbo-instruct'){
     return new Promise((resolve, reject) => {
         const data = {
-            model: "gpt-3.5-turbo-instruct",
+            model: config.model,
             prompt: prompt,
             stream: !!config.tokenCallback,
             ...(config.max_tokens && {max_tokens: config.max_tokens}),
@@ -113,6 +115,12 @@ class OpenAI {
         req.write(JSON.stringify(data));
         req.end();
     });
+ } else {
+    let instruction = `You are tasked with continuing the text based on the prompt provided. The AI operates purely on text generation, receiving and expanding upon the given prompt.
+
+Prompt: ${prompt}`
+return await this.Chat([{role : 'user',content : instruction}],config) 
+} 
 }
 
 async Chat(messages = [{role : 'user',content : 'Who won the world series in 2020?'}], config = {}) {
@@ -206,8 +214,3 @@ async Chat(messages = [{role : 'user',content : 'Who won the world series in 202
 }
 
 export default OpenAI
-
-//const ai = new OpenAI('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')
-
-//console.log(await ai.Chat([{role : 'user',content : 'Who is obama?'}],{model : 'gpt-4-turbo-preview',tokenCallback : (token) => {console.log(token)}}))
-//console.log(await ai.Chat([{role : 'user',content : 'Who is obama?'}]))
