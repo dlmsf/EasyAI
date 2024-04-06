@@ -68,7 +68,7 @@ class TerminalGenerate {
 
 export default TerminalGenerate;
 
-
+/*
 function Sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -85,3 +85,4 @@ console.log(input)
   }
   
 })
+*/
