@@ -1,72 +1,55 @@
-import readline from 'readline';
+import process from 'process';
 
-/**
- * Represents a terminal interface that processes user prompts and displays generated content.
- */
 class TerminalGenerate {
-  /**
-   * Creates an instance of TerminalGenerate.
-   * @param {(input: string, displayToken: (token: string, color: string) => Promise<void>) => Promise<void>} generateFunction 
-   *        A function that takes user input and a function to display tokens one by one, potentially in different colors.
-   * @param {Object} [config] - Configuration object for the TerminalGenerate.
-   * @param {Function} [config.exitFunction] - Optional function to execute on exit.
-   */
   constructor(generateFunction, config = {}) {
-    this.rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
-    this.generateFunction = generateFunction;
-    this.config = config;
-    this.colors = ['\x1b[34m', '\x1b[32m']; // Example colors: Blue and Green
-    this.currentColorIndex = 0;
-    this.initGenerate();
+      this.generateFunction = generateFunction;
+      this.config = config;
+      this.inputBuffer = '';
+      this.currentColorIndex = 0; // Start with the first color
+      this.colors = [
+          '\x1b[31m', // Red
+          '\x1b[34m'  // Blue
+      ];
+      
+      process.stdin.setRawMode(true);
+      process.stdin.resume();
+      process.stdin.setEncoding('utf8');
+      
+      this.initGenerate();
   }
 
-  /**
-   * Initializes the generate interface.
-   */
   initGenerate() {
-    this.rl.on('line', async (line) => {
-      await this.processInput(line.trim());
-      this.rl.prompt();
-    }).on('close', () => {
-      if (typeof this.config.exitFunction === 'function') {
-        this.config.exitFunction();
-      } else {
-        console.log('Generate session ended.');
-        process.exit(0);
-      }
-    });
-
-    this.rl.setPrompt('Prompt: ');
-    this.rl.prompt();
+      process.stdout.write('Prompt: ');
+      
+      process.stdin.on('data', (key) => {
+          if (key === '\u000D') { // Enter key
+              this.processInput(this.inputBuffer);
+              this.inputBuffer = '';
+          } else if (key === '\u0003') { // Ctrl+C to exit
+              console.log('\x1b[0m'); // Reset color before exiting
+              process.exit();
+          } else {
+              this.inputBuffer += key;
+              process.stdout.write(key);
+          }
+      });
   }
 
-  /**
-   * Processes user input.
-   * @param {string} input - The user input.
-   */
   async processInput(input) {
-    await this.generateFunction(input, this.displayToken.bind(this));
-    process.stdout.write('\x1b[0m\n'); // Reset color and move to new line
+      await this.generateFunction(input, this.displayToken.bind(this));
+      process.stdout.write('\x1b[0m\nPrompt: '); // Reset color and prepare for new input
   }
 
-  /**
-   * Displays a token.
-   * @param {string} token - The token to display.
-   * @param {boolean} changeColor - Whether to change the color for the next token.
-   */
   async displayToken(token, changeColor = false) {
-    const color = this.colors[this.currentColorIndex];
-    process.stdout.write(`${color}${token}\x1b[0m`); // Print the token in the current color and reset
-    if (changeColor) {
-      this.currentColorIndex = (this.currentColorIndex + 1) % this.colors.length; // Cycle through colors
-    }
+      if (changeColor) {
+          this.currentColorIndex = (this.currentColorIndex + 1) % this.colors.length; // Toggle color index
+      }
+      const color = this.colors[this.currentColorIndex];
+      process.stdout.write(color + token + '\x1b[0m'); // Display the token in color, then reset color
   }
 }
 
-export default TerminalGenerate;
+export default TerminalGenerate
 
 /*
 function Sleep(ms) {
@@ -75,7 +58,7 @@ function Sleep(ms) {
 
 const teste = new TerminalGenerate(async (input,display) => {
 
-console.log(input)
+//console.log(input)
 
   let frase = [' Hey', ' there!', " How's", ' it', ' going?', ' I', ' was', ' just']
   
