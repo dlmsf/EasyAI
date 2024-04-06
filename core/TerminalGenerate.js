@@ -1,6 +1,16 @@
 import process from 'process';
 
+/**
+ * Represents a terminal for generating output based on user input, with customizable output color.
+ */
 class TerminalGenerate {
+  /**
+   * Creates an instance of TerminalGenerate.
+   * @param {(input: string, displayToken: (token: string, changeColor?: boolean) => Promise<void>) => Promise<void>} generateFunction 
+   *        A function that takes user input and a function to display tokens with optional color change.
+   * @param {Object} [config] - Configuration object for TerminalGenerate.
+   * @param {Function} [config.exitFunction] - Optional function to execute on generator exit.
+   */
   constructor(generateFunction, config = {}) {
       this.generateFunction = generateFunction;
       this.config = config;
@@ -18,6 +28,9 @@ class TerminalGenerate {
       this.initGenerate();
   }
 
+  /**
+   * Initializes the generator by setting up the input listener and prompt.
+   */
   initGenerate() {
       process.stdout.write('Prompt: ');
       
@@ -26,8 +39,13 @@ class TerminalGenerate {
               this.processInput(this.inputBuffer);
               this.inputBuffer = '';
           } else if (key === '\u0003') { // Ctrl+C to exit
-              console.log('\x1b[0m'); // Reset color before exiting
-              process.exit();
+              process.stdout.write('\x1b[0m\n'); // Reset color before exiting
+              if (typeof this.config.exitFunction === 'function') {
+                  this.config.exitFunction();
+              } else {
+                  console.log('Generate ended.');
+                  process.exit();
+              }
           } else {
               this.inputBuffer += key;
               process.stdout.write(key);
@@ -35,11 +53,20 @@ class TerminalGenerate {
       });
   }
 
+  /**
+   * Processes the user input, generates output, and handles color toggling.
+   * @param {string} input - The user input.
+   */
   async processInput(input) {
       await this.generateFunction(input, this.displayToken.bind(this));
       process.stdout.write('\x1b[0m\nPrompt: '); // Reset color and prepare for new input
   }
 
+  /**
+   * Displays a token with optional color change.
+   * @param {string} token - The token to display.
+   * @param {boolean} [changeColor=false] - Whether to change the color of the token.
+   */
   async displayToken(token, changeColor = false) {
       if (changeColor) {
           this.currentColorIndex = (this.currentColorIndex + 1) % this.colors.length; // Toggle color index
@@ -50,22 +77,3 @@ class TerminalGenerate {
 }
 
 export default TerminalGenerate
-
-/*
-function Sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-const teste = new TerminalGenerate(async (input,display) => {
-
-//console.log(input)
-
-  let frase = [' Hey', ' there!', " How's", ' it', ' going?', ' I', ' was', ' just']
-  
-  for(const w of frase){
-    await display(w)
-    await Sleep(200)
-  }
-  
-})
-*/
