@@ -11,7 +11,7 @@ const Sleep = async (ms) => {
 }
 
 async function CompletionPostRequest(bodyObject,config,streamCallback,port = 8080) {
-    const url = new URL(`http://localhost:${port}/completion`);
+    const url = new URL(`http://127.0.0.1:${port}/completion`);
 
     const options = {
         method: 'POST',
