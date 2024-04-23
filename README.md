@@ -22,6 +22,8 @@ npm install @massudy/easyai
 
 ‎ 4° - Check the version -> ```gcc --version```
 
+⚙️ **Windows**
+
 
 
 ## Getting Started
