@@ -9,7 +9,7 @@ const execAsync = promisify(exec);
 class W64 {
     static executeCommand(command) {
         return new Promise((resolve, reject) => {
-            exec(command, { shell: 'cmd.exe' }, (error, stdout, stderr) => {
+            exec(`${command} >nul 2>&1`, { shell: 'cmd.exe' }, (error, stdout, stderr) => {
                 if (error) {
                     reject(error);
                     return;
@@ -18,6 +18,7 @@ class W64 {
             });
         });
     }
+    
 
     static async install() {
         try {
