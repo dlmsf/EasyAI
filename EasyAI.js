@@ -5,6 +5,7 @@ import ChatModule from "./core/ChatModule/ChatModule.js";
 import isNonEmptyFunction from "./core/useful/isNonEmptyFunction.js";
 import renameProperty from './core/useful/renameProperty.js'
 import OpenAI from './core/OpenAI.js'
+import EasyAI_WebView from "./core/EasyAI_WebView.js";
 
 class EasyAI {
     constructor(config = {openai_token : '',openai_model : undefined,server_url : '',server_port : 4000,server_token : '',llama : {server_port : undefined,git_hash : undefined,llama_model : '',cuda : false,gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined,mmap : undefined}}){
@@ -94,6 +95,8 @@ static Sleep = async (ms) => {
 }
 
 static Server = EasyAI_Server
+
+static WebView = EasyAI_WebView
 
 }
 
