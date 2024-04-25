@@ -1,4 +1,4 @@
-import getTime from '../../useful/getTime.js'
+import getTime from '../useful/getTime.js'
 
 class Message {
     constructor(sender,content,config = {id : undefined,time : false}){

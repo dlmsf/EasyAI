@@ -1,9 +1,9 @@
 import EasyAI_Server from "./core/EasyAI_Server.js";
 import LlamaCPP from "./core/Llama/LlamaCPP.js"
-import consumeGenerateRoute from "./useful/consumeGenerateRoute.js";
+import consumeGenerateRoute from "./core/useful/consumeGenerateRoute.js";
 import ChatModule from "./core/ChatModule/ChatModule.js";
-import isNonEmptyFunction from "./useful/isNonEmptyFunction.js";
-import renameProperty from './useful/renameProperty.js'
+import isNonEmptyFunction from "./core/useful/isNonEmptyFunction.js";
+import renameProperty from './core/useful/renameProperty.js'
 import OpenAI from './core/OpenAI.js'
 
 class EasyAI {

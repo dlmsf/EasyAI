@@ -1,7 +1,7 @@
 import { exec } from 'child_process';
 import { promises as fs } from 'fs';
 import os from 'os'
-import downloadFile from '../../../useful/downloadFile.js'
+import downloadFile from '../../useful/downloadFile.js'
 
 class CUDA {
     static executeCommand(command) {

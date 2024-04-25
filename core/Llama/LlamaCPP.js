@@ -2,8 +2,8 @@ import { promises as fsPromises, createWriteStream } from 'fs';
 import path , { join } from 'path';
 import https from 'https';
 import {exec, spawn} from 'child_process'
-import findDirectory from '../../useful/findDirectory.js';
-import Git from '../../useful/Git.js';
+import findDirectory from '../useful/findDirectory.js'
+import Git from '../useful/Git.js'
 import http from 'http'
 
 const Sleep = async (ms) => {
