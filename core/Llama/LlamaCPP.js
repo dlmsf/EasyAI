@@ -5,6 +5,8 @@ import {exec, spawn} from 'child_process'
 import findDirectory from '../useful/findDirectory.js'
 import Git from '../useful/Git.js'
 import http from 'http'
+import System from '../useful/System.js';
+import CheckFile from '../useful/CheckFile.js';
 
 const Sleep = async (ms) => {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -131,7 +133,13 @@ async LlamaServer() {
                await Git.Checkout(cpp_path,this.GitHash)
             }
         }
+        
+        let system = System()
+        let has_build = await CheckFile('./llama.cpp/server.exe')
+
+        if(system == 'linux' || !has_build){
         await this.runMake(cpp_path);
+        }
         this.executeMain(cpp_path);
         await Sleep(2500) // REMOVER ESSA PORCARIA DEPOIS NÃO TM QUE ESPERAR COM SLEEP COISA NENHUMA, TEM QUE TER UMA VERIFICAÇÃO CORRETA
         this.ServerOn = true; 
