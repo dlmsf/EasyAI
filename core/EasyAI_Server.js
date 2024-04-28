@@ -66,6 +66,56 @@ class EasyAI_Server {
                     res.end(JSON.stringify({ error: 'Bad request.' }));
                 }
             });
+        } else if (req.method === 'POST' && pathname === '/chat') {
+            let body = '';
+    
+            req.on('data', chunk => {
+                body += chunk.toString();
+            });
+    
+            req.on('end', () => {
+                try {
+                    const requestData = JSON.parse(body);
+    
+                    // Token-based authentication
+                    if (this.token && requestData.token !== this.token) {
+                        res.writeHead(403, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Invalid token.' }));
+                        return;
+                    }
+    
+                    // Call the Chat method
+                    const config = requestData.config || { stream: false, retryLimit: 60000 };
+                    if (config.stream) {
+                        res.writeHead(200, { 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' });
+    
+                        config.tokenCallback = (token) => {
+                            res.write(JSON.stringify(token) + '\n');
+                        }
+    
+                        this.AI.Chat(requestData.messages, config).then(result => {
+                            if (result) {
+                                res.write(JSON.stringify(result));
+                            }
+                            res.end(); // End the response
+                        }).catch(error => {
+                            res.writeHead(500, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ error: error.message }));
+                        });
+                    } else {
+                        this.AI.Chat(requestData.messages, config).then(result => {
+                            res.writeHead(200, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify(result));
+                        }).catch(error => {
+                            res.writeHead(500, { 'Content-Type': 'application/json' });
+                            res.end(JSON.stringify({ error: error.message }));
+                        });
+                    }
+                } catch (error) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Bad request.' }));
+                }
+            });
         } else {
             res.writeHead(404, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Not found.' }));
