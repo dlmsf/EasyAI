@@ -158,22 +158,23 @@
         }
 
         function appendMessage(text, sender) {
-            const chatMessages = document.getElementById('chat-messages');
-            if (sender === 'ai' && aiMessageDiv) {
-                // Append text to the existing AI message div
-                aiMessageDiv.textContent += ' ' + text;
-            } else {
-                // Create a new message div
-                let msgDiv = document.createElement('div');
-                msgDiv.classList.add('message', sender === 'user' ? 'user-message' : 'ai-message');
-                msgDiv.textContent = sender === 'user' ? text : 'AI: ' + text;
-                chatMessages.appendChild(msgDiv);
-                if (sender === 'ai') {
-                    aiMessageDiv = msgDiv; // Store reference to AI message div
-                }
-            }
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+    const chatMessages = document.getElementById('chat-messages');
+    if (sender === 'ai' && aiMessageDiv) {
+        // Concatenate text directly to the existing AI message div
+        aiMessageDiv.textContent += text;
+    } else {
+        // Create a new message div
+        let msgDiv = document.createElement('div');
+        msgDiv.classList.add('message', sender === 'user' ? 'user-message' : 'ai-message');
+        msgDiv.textContent = sender === 'user' ? text : 'AI:' + text; // Remove space after 'AI:'
+        chatMessages.appendChild(msgDiv);
+        if (sender === 'ai') {
+            aiMessageDiv = msgDiv; // Store reference to AI message div
         }
+    }
+    chatMessages.scrollTop = chatMessages.scrollHeight; // Ensures the latest messages are visible
+}
+
 
         window.onload = initializeWebSocket;
     </script>

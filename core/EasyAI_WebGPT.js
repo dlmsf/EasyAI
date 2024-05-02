@@ -4,11 +4,12 @@ import path from 'path';
 import WebSocket from './WebSocket.js';
 
 function tokenize(text) {
-    return text.trim().match(/\S+/g) || [];
-}
+    return text.trim().match(/(?:^|\s+)(\S+)/g);
+  }
 
 async function defaultInputFunction(input, callback) {
-    const tokens = ['You', 'typed:','opa', ...tokenize(input)];
+    console.log(input)
+    const tokens = ['You', ' typed: ', ...tokenize(input)];
     for (const token of tokens) {
         await new Promise(resolve => setTimeout(resolve, 50)); // Simulate processing delay
         callback(token);
