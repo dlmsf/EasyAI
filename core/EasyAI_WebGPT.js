@@ -17,6 +17,17 @@ async function defaultInputFunction(input, callback) {
     }
 }
 
+/**
+ * Constructs an instance of EasyAI_WebGPT, ensuring singleton pattern if an instance already exists.
+ * 
+ * @param {Object} config - Configuration options for the EasyAI_WebGPT instance.
+ * @param {number} [config.port=3000] - The port number on which the HTTP server will listen.
+ * @param {string} [config.easyai_url='localhost'] - The URL of the EasyAI server.
+ * @param {number} [config.easyai_port] - The port number on which the EasyAI server is running.
+ *   If not specified, defaults to 4000 if easyai_url is 'localhost', otherwise undefined.
+ * @param {string} [config.htmlpath='./core/chat.html'] - Path to the HTML file to serve when accessing the root URL.
+ */
+
 class EasyAI_WebGPT {
     static instance = null;
 
