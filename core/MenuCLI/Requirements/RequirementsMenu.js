@@ -71,7 +71,7 @@ options : [
 })
 
 const LlamaCPPMenu = (props) => ({
-    title : `🔍 Requirements | LlamaCPP - ${props.hash}
+    title : `🔍 Requirements | LlamaCPP ${(props.hash) ? `- ${props.hash}` : ''} 
 `,
 options : props.options
 
