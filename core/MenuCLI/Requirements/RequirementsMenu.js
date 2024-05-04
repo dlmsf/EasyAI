@@ -4,31 +4,39 @@ import StartMenu from "../StartMenu.js";
 import LlamacppRepo from "./LlamacppRepo.js";
 import WindowsMenu from "./WindowsMenu.js";
 
-const LlamaCPPMenu = () => ({
-    title : `🔍 Requirements | LlamaCPP
-`,
-options : [
-    {
-    name : `${LlamacppRepo.directoryExists() ? 'Reinstalar' : 'Instalar'}`,
-    action : async () => {
-        if(LlamacppRepo.directoryExists){
-            await LlamacppRepo.resetRepository()
-            MenuCLI.displayMenu(LlamaCPPMenu)
-        } else {
-            await LlamacppRepo.cloneRepository()
-            MenuCLI.displayMenu(LlamaCPPMenu)
+let cpp_options = async () => {
+    let final_array = [{
+        name : `${LlamacppRepo.directoryExists() ? 'Reinstalar' : 'Instalar'}`,
+        action : async () => {
+            if(LlamacppRepo.directoryExists){
+                await LlamacppRepo.resetRepository()
+                MenuCLI.displayMenu(LlamaCPPMenu,{props : {hash : await LlamacppRepo.getCurrentCommitHash(),options : await cpp_options()}})
+            } else {
+                await LlamacppRepo.cloneRepository()
+                MenuCLI.displayMenu(LlamaCPPMenu,{props : {hash : await LlamacppRepo.getCurrentCommitHash(),options : await cpp_options()}})
+            }
         }
-    }
-    },
-    {
+        }]
+    
+        if(LlamacppRepo.directoryExists()){
+            final_array.push({
+                name : 'Definir Head/Commit',
+        action : async () => {
+            let hash = await MenuCLI.ask('Hash : ')
+            await LlamacppRepo.changeHeadToCommit(hash)
+            MenuCLI.displayMenu(LlamaCPPMenu,{props : {hash : await LlamacppRepo.getCurrentCommitHash(),options : await cpp_options()}})
+            }
+            })
+        }
+    
+        final_array.push({
         name : '← Voltar',
         action : () => {
             MenuCLI.displayMenu(RequirementsMenu)
             }
+        })
+        return final_array
         }
-     ]
-
-})
 
 const RequirementsMenu = () => ({
     title : `🔍 Requirements
@@ -48,8 +56,8 @@ options : [
     },
     {
         name : 'LlamaCPP',
-        action : () => {
-            MenuCLI.displayMenu(LlamaCPPMenu)
+        action : async () => {
+            MenuCLI.displayMenu(LlamaCPPMenu,{props : {hash : await LlamacppRepo.getCurrentCommitHash(),options : await cpp_options()}})
             }
         },
     {
@@ -59,6 +67,13 @@ options : [
             }
         }
      ]
+
+})
+
+const LlamaCPPMenu = (props) => ({
+    title : `🔍 Requirements | LlamaCPP - ${props.hash}
+`,
+options : props.options
 
 })
 
