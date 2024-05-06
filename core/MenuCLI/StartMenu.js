@@ -24,7 +24,12 @@ options : [
         action : () => {
             MenuCLI.displayMenu(RequirementsMenu)
             }
-        }
+        },
+        {
+            name : '📦 Misc.',
+            action : () => {
+                }
+            }
      ]
 
 })
