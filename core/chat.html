@@ -23,6 +23,17 @@
             background: #e9e9e9;
             overflow-y: auto;
             padding: 10px;
+            position: relative;
+        }
+        .reset-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
         }
         .chat-box {
             flex-grow: 1;
@@ -98,6 +109,7 @@
             <!-- Sessions will be added here -->
         </div>
         <div class="chat-box">
+            <button class="reset-button" onclick="resetChat()">Reset</button>
             <h2>Chat</h2>
             <div id="chat-messages" style="margin-bottom: 60px;">
                 <!-- Messages will be displayed here -->
@@ -110,7 +122,7 @@
     </div>
 
     <script>
-      let ws;
+        let ws;
         let aiMessageDiv = null; // Reference to the current AI message div
 
         function initializeWebSocket() {
@@ -158,24 +170,31 @@
         }
 
         function appendMessage(text, sender) {
-    const chatMessages = document.getElementById('chat-messages');
-    if (sender === 'ai' && aiMessageDiv) {
-        // Concatenate text directly to the existing AI message div and replace line breaks
-        aiMessageDiv.innerHTML += text.replace(/\n/g, '<br>');
-    } else {
-        // Create a new message div
-        let msgDiv = document.createElement('div');
-        msgDiv.classList.add('message', sender === 'user' ? 'user-message' : 'ai-message');
-        msgDiv.innerHTML = sender === 'user' ? text : 'AI:' + text.replace(/\n/g, '<br>'); // Replace line breaks
-        chatMessages.appendChild(msgDiv);
-        if (sender === 'ai') {
-            aiMessageDiv = msgDiv; // Store reference to AI message div
+            const chatMessages = document.getElementById('chat-messages');
+            if (sender === 'ai' && aiMessageDiv) {
+                // Concatenate text directly to the existing AI message div and replace line breaks
+                aiMessageDiv.innerHTML += text.replace(/\n/g, '<br>');
+            } else {
+                // Create a new message div
+                let msgDiv = document.createElement('div');
+                msgDiv.classList.add('message', sender === 'user' ? 'user-message' : 'ai-message');
+                msgDiv.innerHTML = sender === 'user' ? text : 'AI:' + text.replace(/\n/g, '<br>'); // Replace line breaks
+                chatMessages.appendChild(msgDiv);
+                if (sender === 'ai') {
+                    aiMessageDiv = msgDiv; // Store reference to AI message div
+                }
+            }
+            chatMessages.scrollTop = chatMessages.scrollHeight; // Ensures the latest messages are visible
         }
-    }
-    chatMessages.scrollTop = chatMessages.scrollHeight; // Ensures the latest messages are visible
-}
 
-
+        function resetChat() {
+            const chatMessages = document.getElementById('chat-messages');
+            chatMessages.innerHTML = '';
+            aiMessageDiv = null;
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send('/reset');
+            }
+        }
 
         window.onload = initializeWebSocket;
     </script>

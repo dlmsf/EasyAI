@@ -12,6 +12,10 @@ class Chat {
         this.Historical.push(new Message(sender,content,config))
     }
 
+    Reset(){
+        this.Historical = []
+    }
+
 }
 
 export default Chat

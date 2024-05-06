@@ -72,10 +72,15 @@ class EasyAI_WebGPT {
 
         const wsServer = new WebSocket(this.port + 1);
         wsServer.on('message', async (socket, message) => {
-            await this.processInputFunction(message, (response) => {
-                wsServer.send(socket, JSON.stringify({type: 'token', token: response}));
-            });
-            wsServer.send(socket, JSON.stringify({ type: "end-of-response" }));
+            if(message == '/reset'){
+                this.Chat.Reset()
+                console.log('Chat reseted')
+            } else {
+                await this.processInputFunction(message, (response) => {
+                    wsServer.send(socket, JSON.stringify({type: 'token', token: response}));
+                });
+                wsServer.send(socket, JSON.stringify({ type: "end-of-response" }));
+            }
         });
 
         this.server.on('upgrade', (req, socket, head) => {
