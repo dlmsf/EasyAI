@@ -5,18 +5,6 @@ import EasyAI from '../EasyAI.js'
 import ChatPrompt from './MenuCLI/Sandbox/ChatPrompt.js';
 import Chat from './ChatModule/Chat.js';
 
-function tokenize(text) {
-    return text.trim().match(/(?:^|\s+)(\S+)/g);
-  }
-
-async function defaultInputFunction(input, callback) {
-    const tokens = ['You', ' typed: ', ...tokenize(input)];
-    for (const token of tokens) {
-        await new Promise(resolve => setTimeout(resolve, 50)); // Simulate processing delay
-        callback(token);
-    }
-}
-
 /**
  * Constructs an instance of EasyAI_WebGPT, ensuring singleton pattern if an instance already exists.
  * 
