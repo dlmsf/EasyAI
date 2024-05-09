@@ -26,7 +26,7 @@ options : [
             }
         },
         {
-            name : '📦 Misc.',
+            name : '✏️ Settings',
             action : () => {
                 }
             }
