@@ -6,10 +6,11 @@ import ChatPrompt from './ChatPrompt.js'
 import readline from 'readline';
 import Chat from '../../ChatModule/Chat.js'
 import TerminalGenerate from '../../TerminalGenerate.js'
+import ColorText from '../../useful/ColorText.js'
 
 
 const SandboxMenu = (props) => ({
-    title : `☕ Sandbox | ${props.openai_token ? 'OpenAI' : `${props.server_url}${(props.server_port) ? `:${props.server_port}` : ''}`}
+    title : `☕ Sandbox | ${props.openai_token ? `OpenAI ${props.openai_model ? `(${ColorText.cyan(props.openai_model)})` : ''}` : `${props.server_url}${(props.server_port) ? `:${props.server_port}` : ''}`}
 `,
 options : [
     {
