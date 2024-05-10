@@ -78,7 +78,7 @@ ${props.save_message}
 ` : ''}`,
 options : [
     {
-    name : '⚡ Iniciar Servidor ⚡',
+    name : ColorText.yellow('⚡ Iniciar Servidor ⚡'),
     action : () => {
         let server = new EasyAI.Server({port : easyai_port,EasyAI_Config : easyai_config})
         server.start()
@@ -106,7 +106,7 @@ options : [
             }
             },
             {
-                name : `Threads | ${easyai_config.llama ? (easyai_config.llama.threads ? easyai_config.llama.threads : 'MAX') : 'MAX'}`,
+                name : `Threads | ${easyai_config.llama ? (easyai_config.llama.threads ? ColorText.magenta(easyai_config.llama.threads) : ColorText.green('MAX')) : ColorText.green('MAX')}`,
                 action : async () => {
                     let newthreads = await MenuCLI.ask('Qntd. Threads : ')
                     if(easyai_config.llama){
@@ -168,7 +168,7 @@ const ServerMenu = () => ({
 `,
 options : [
     {
-    name : '⚡ Inicio Rápido',
+    name : ColorText.yellow('⚡ Inicio Rápido'),
     action : () => {
         easyai_config = {}
         if(ConfigManager.getKey('start-cuda')){

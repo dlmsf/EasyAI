@@ -4,7 +4,7 @@ import ConfigManager from './ConfigManager.js'
 import ColorText from '../../useful/ColorText.js'
 
 const SettingsMenu = () => ({
-    title : `⚙️ Centos Requirements
+    title : `✏️ Settings
 `,
 options : [
     {
@@ -19,7 +19,7 @@ options : [
     }
     },
     {
-    name : 'OpenAI',
+    name : (ConfigManager.getKey('openai') ? ColorText.green('OpenAI') : ColorText.red('OpenAI')),
     action : () => {
         }
     },
