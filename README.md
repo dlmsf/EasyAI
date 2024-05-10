@@ -11,8 +11,8 @@
 ```
 npm install @massudy/easyai
 ```
-## Requirements
-⚙️ **GCC 11.2.1 | CentOS7.x**
+## ⚙️ Requirements
+ 🐧 **GCC 11.2.1 | CentOS7.x**
 
 ‎ 1° - Install scl repo -> ```sudo yum install -y centos-release-scl```
 
@@ -22,7 +22,7 @@ npm install @massudy/easyai
 
 ‎ 4° - Check the version -> ```gcc --version```
 
-⚙️ **Windows**
+🖥️ **Windows**
 
  1° - Download the latest fortran version of [w64devkit](https://github.com/skeeto/w64devkit/releases)
 
