@@ -8,12 +8,26 @@ class TerminalHUD {
     });
   }
 
-  ask(question) {
-    return new Promise(resolve => {
-      this.rl.question(question, answer => {
-        resolve(answer);
+  ask(question, config = {}) {
+    if (config.options) {
+      return this.displayMenuFromOptions(question, config.options);
+    } else {
+      return new Promise(resolve => {
+        this.rl.question(question, answer => {
+          resolve(answer);
+        });
       });
+    }
+  }
+
+  async displayMenuFromOptions(question, options) {
+    console.log(question);
+    options.forEach((option, index) => {
+      console.log(`${index + 1}. ${option}`);
     });
+
+    const choice = parseInt(await this.ask('Choose an option: '));
+    return options[choice - 1];
   }
 
   async displayMenu(menuGenerator,config = {props : {},clearScreen : true,alert : undefined,alert_emoji : '⚠️'}) {
