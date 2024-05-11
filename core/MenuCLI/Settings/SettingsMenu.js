@@ -20,7 +20,12 @@ options : [
     },
     {
     name : (ConfigManager.getKey('openai') ? ColorText.green('OpenAI') : ColorText.red('OpenAI')),
-    action : () => {
+    action : async () => {
+        let final_object = {}
+        final_object.token = await MenuCLI.ask('OpenAI Token : ')
+        final_object.model = await MenuCLI.ask('Select the model',{options : ['gpt-3.5-turbo','gpt-4','gpt-4-turbo-preview','gpt-3.5-turbo-instruct']})
+        ConfigManager.setKey('openai',final_object)
+        MenuCLI.displayMenu(SettingsMenu)
         }
     },
     {

@@ -13,7 +13,7 @@ class TerminalHUD {
       return this.displayMenuFromOptions(question, config.options);
     } else {
       return new Promise(resolve => {
-        this.rl.question(question, answer => {
+        this.rl.question(`\n${question}`, answer => {
           resolve(answer);
         });
       });
@@ -21,7 +21,7 @@ class TerminalHUD {
   }
 
   async displayMenuFromOptions(question, options) {
-    console.log(question);
+    console.log(`\n${question}\n`);
     options.forEach((option, index) => {
       console.log(`${index + 1}. ${option}`);
     });
