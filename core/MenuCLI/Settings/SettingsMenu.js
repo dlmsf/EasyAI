@@ -1,6 +1,6 @@
 import MenuCLI from "../MenuCLI.js"
 import StartMenu from "../StartMenu.js"
-import ConfigManager from './ConfigManager.js'
+import ConfigManager from '../../ConfigManager.js'
 import ColorText from '../../useful/ColorText.js'
 
 const SettingsMenu = () => ({

@@ -4,7 +4,7 @@ import MenuCLI from './MenuCLI.js'
 import ServerSaves from './ServerSaves.js'
 import ModelsList from './ModelsList.js'
 import ColorText from '../useful/ColorText.js'
-import ConfigManager from './Settings/ConfigManager.js'
+import ConfigManager from '../ConfigManager.js'
 
 let easyai_config = {}
 let easyai_port = 4000
