@@ -1,6 +1,6 @@
 # EasyAI
 
-🔧 ```npm install -g @massudy/easyai```
+🔧 ```npm i -g @massudy/easyai```
 
 ‎ 🌎 ```ai```
 
@@ -9,7 +9,7 @@
 
 # Default Usage
 ```
-npm install @massudy/easyai
+npm i @massudy/easyai
 ```
 ## ⚙️ Requirements
  🐧 **GCC 11.2.1 | CentOS7.x**
