@@ -5,8 +5,6 @@
 ‎ 🌎 ```ai```
 
 
-
-
 # Default Usage
 ```
 npm install @massudy/easyai
