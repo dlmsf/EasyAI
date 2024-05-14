@@ -50,11 +50,14 @@ class EasyAI_WebGPT {
 
                 // Check if chat.html exists in the default path or the specified path
                 if (!fs.existsSync(path.resolve(process.cwd(), filePath))) {
-                    // Get the current file's directory
-                    const currentFileDir = path.dirname(fileURLToPath(import.meta.url));
+                    // Get the location of the EasyAI_WebGPT module
+                    const modulePath = require.resolve('EasyAI_WebGPT');
+
+                    // Get the directory of the EasyAI_WebGPT module
+                    const moduleDir = path.dirname(modulePath);
 
                     // Search for chat.html in the global package installation directory
-                    filePath = path.join(currentFileDir, 'core', 'chat.html');
+                    filePath = path.join(moduleDir, 'core', 'chat.html');
                 }
 
                 fs.readFile(filePath, (err, content) => {
@@ -71,7 +74,7 @@ class EasyAI_WebGPT {
                 res.end('Not Found');
             }
         });
-        
+
         const wsServer = new WebSocket(this.port + 1);
         wsServer.on('message', async (socket, message) => {
             if(message == '/reset'){
