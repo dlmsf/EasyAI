@@ -106,6 +106,35 @@ options : [
             }
             },
             {
+                name : (easyai_config.token) ? ColorText.green('Access Token') : ColorText.red('Access Token'),
+                action : async  () => {
+                    if(easyai_config.token){
+                        let response = await MenuCLI.ask('Edit Token',{options : ['New Token','Clear Token','Cancel']})
+                        switch (response) {
+                            case 'New Token':
+                                let token =  await MenuCLI.ask('Set Token : ')
+                                easyai_config.token = token
+                                MenuCLI.displayMenu(CustomServer)
+                            break;
+
+                            case 'Clear Token':
+                                delete easyai_config.token
+                                MenuCLI.displayMenu(CustomServer)
+                            break;
+                        
+                            default:
+                                MenuCLI.displayMenu(CustomServer)
+                            break;
+                        }
+                    } else {
+                        let token =  await MenuCLI.ask('Set Token : ')
+                        easyai_config.token = token
+                        MenuCLI.displayMenu(CustomServer)
+                    }
+                    
+                    }
+        },
+            {
                 name : `Threads | ${easyai_config.llama ? (easyai_config.llama.threads ? ColorText.magenta(easyai_config.llama.threads) : ColorText.green('MAX')) : ColorText.green('MAX')}`,
                 action : async () => {
                     let newthreads = await MenuCLI.ask('Qntd. Threads : ')
