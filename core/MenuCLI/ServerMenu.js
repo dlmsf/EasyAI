@@ -7,6 +7,7 @@ import ColorText from '../useful/ColorText.js'
 import ConfigManager from '../ConfigManager.js'
 
 let easyai_config = {}
+let easyai_token = undefined
 let easyai_port = 4000
 
 let models_options = async () => {
@@ -80,7 +81,7 @@ options : [
     {
     name : ColorText.yellow('⚡ Iniciar Servidor ⚡'),
     action : () => {
-        let server = new EasyAI.Server({port : easyai_port,EasyAI_Config : easyai_config})
+        let server = new EasyAI.Server({token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
         server.start()
     }
     },
@@ -106,19 +107,19 @@ options : [
             }
             },
             {
-                name : (easyai_config.token) ? ColorText.green('Access Token') : ColorText.red('Access Token'),
+                name : (easyai_token) ? ColorText.green('Access Token') : ColorText.red('Access Token'),
                 action : async  () => {
-                    if(easyai_config.token){
+                    if(easyai_token){
                         let response = await MenuCLI.ask('Edit Token',{options : ['New Token','Clear Token','Cancel']})
                         switch (response) {
                             case 'New Token':
                                 let token =  await MenuCLI.ask('Set Token : ')
-                                easyai_config.token = token
+                                easyai_token = token
                                 MenuCLI.displayMenu(CustomServer)
                             break;
 
                             case 'Clear Token':
-                                delete easyai_config.token
+                                easyai_token = undefined
                                 MenuCLI.displayMenu(CustomServer)
                             break;
                         
@@ -128,7 +129,7 @@ options : [
                         }
                     } else {
                         let token =  await MenuCLI.ask('Set Token : ')
-                        easyai_config.token = token
+                        easyai_token = token
                         MenuCLI.displayMenu(CustomServer)
                     }
                     
