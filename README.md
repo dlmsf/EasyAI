@@ -4,6 +4,10 @@
 
 ‎ 🌎 ```ai```
 
+# ⚡ Flash
+
+💾  ```ai save_name```
+
 # Default Usage
 ```
 npm install @massudy/easyai
