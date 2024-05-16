@@ -4,9 +4,15 @@
 
 ‎ 🌎 ```ai```
 
-# ⚡ Flash
+# Flash
 
 💾  ```ai save_name```
+
+💬 ```chat```
+
+💡 ```generate```
+
+🌐 ```webgpt```
 
 # Default Usage
 ```
