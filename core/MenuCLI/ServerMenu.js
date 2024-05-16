@@ -47,6 +47,7 @@ let save_options = async (delmenu = false) => {
                 let save = await ServerSaves.Load(e)
                 easyai_config = save.EasyAI_Config || {}
                 easyai_port = save.Port || 4000
+                easyai_token = save.Token || undefined
                 MenuCLI.displayMenu(CustomServer)
                 } else {
                     await ServerSaves.Delete(e)
@@ -174,7 +175,7 @@ options : [
         name : '📑 SALVAR CONFIGURAÇÕES',
         action : async  () => {
                 let name =  await MenuCLI.ask('Qual nome deseja inserir ? : ')
-                 await ServerSaves.Save(name,{port : easyai_port,EasyAI_Config : easyai_config})
+                 await ServerSaves.Save(name,{token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
                  .then(() => {
                     MenuCLI.displayMenu(CustomServer,{props : {save_message : '✔️ Configurações salvas com sucesso !'}})
                  })
