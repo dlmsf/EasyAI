@@ -19,25 +19,53 @@
 npm install @massudy/easyai
 ```
 ## ⚙️ Requirements
- 🐧 **GCC 11.2.1 | CentOS7.x**
 
-‎ 1° - Install scl repo -> ```sudo yum install -y centos-release-scl```
+<details>
+  <summary>🐧 GCC 11.2.1 | CentOS7.x</summary>
 
-‎ ‎2° - Install devtoolset 11 -> ```sudo yum install -y devtoolset-11```
+1. Install scl repo:
+   <pre>
+   sudo yum install -y centos-release-scl
+   </pre>
 
-‎ ‎3° - Enable GCC version -> ```source /opt/rh/devtoolset-11/enable``` in ```nano ~/.bashrc``` and refresh ```source ~/.bashrc```
+2. Install devtoolset 11:
+   <pre>
+   sudo yum install -y devtoolset-11
+   </pre>
 
-‎ 4° - Check the version -> ```gcc --version```
+3. Enable GCC version:
+   <pre>
+   source /opt/rh/devtoolset-11/enable
+   </pre>
+   Add the above line in `~/.bashrc` and refresh:
+   <pre>
+   source ~/.bashrc
+   </pre>
 
-🖥️ **Windows**
+4. Check the version:
+   <pre>
+   gcc --version
+   </pre>
 
- 1° - Download the latest fortran version of [w64devkit](https://github.com/skeeto/w64devkit/releases)
+</details>
 
- 2° - Extract and add the **bin** to PATH global variable
+<details>
+  <summary>🖥️ Windows</summary>
 
- 3° - Check command-line -> ```gcc --version```
+1. Download the latest fortran version of [w64devkit](https://github.com/skeeto/w64devkit/releases)
 
+2. Extract and add the bin to PATH global variable:
+   <pre>
+   setx path "%path%;C:\path\to\w64devkit\bin"
+   </pre>
+   Replace `C:\path\to\w64devkit\bin` with the actual path where you extracted w64devkit.
 
+3. Check command-line:
+   <pre>
+   gcc --version
+   </pre>
+
+</details>
 
 ## 🏁 Getting Started
 ```
