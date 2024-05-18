@@ -21,7 +21,7 @@ npm install @massudy/easyai
 ## ⚙️ Requirements
 
 <details>
-  <summary>🐧 GCC 11.2.1 | CentOS7.x</summary>
+  <summary>🐧 CentOS7.x</summary>
 
 1. Install scl repo:
    <pre>
