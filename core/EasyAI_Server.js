@@ -157,17 +157,17 @@ class EasyAI_Server {
             const currentModuleUrl = import.meta.url;
             const currentModulePath = fileURLToPath(currentModuleUrl);
             const currentModuleDir = path.dirname(currentModulePath);
-            filePath = path.join(currentModuleDir, 'core/EasyAI_Server.js');
+            filePath = path.join(currentModuleDir, 'EasyAI_Server.js');
           }
           return filePath;
         }
     
-        const serverScriptPath = './pm2_easyai_server.js';
+        const serverScriptPath = './pm2_easyai_server.mjs';
         const easyAIServerPath = await findEasyAIServerPath();
     
         const fileContent = `
           (async () => {
-            const EasyAI_Server = (await import('${easyAIServerPath}')).default;
+            import EasyAI_Server from '${easyAIServerPath}'
             const config = ${JSON.stringify(config)};
             const server = new EasyAI_Server(config);
             server.start();
