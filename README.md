@@ -77,3 +77,7 @@ console.log(await AI.Generate('The text below is cake recipe'))
 
 // This code will generate a cake recipe
 ```
+
+---
+
+[Full Doc](https://doc.easyai.com.br)
