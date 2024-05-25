@@ -2,6 +2,20 @@ import http from 'http';
 import EasyAI from '../EasyAI.js';
 import { networkInterfaces } from 'os';
 import { URL } from 'url';
+import { exec } from 'child_process';
+import { writeFileSync, existsSync } from 'fs';
+
+function execAsync(command) {
+    return new Promise((resolve, reject) => {
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve({ stdout, stderr });
+      });
+    });
+  }
 
 class EasyAI_Server {
     constructor(config = {port: 4000, token: '', EasyAI_Config : {}}) {
@@ -133,6 +147,54 @@ class EasyAI_Server {
         }
         return '127.0.0.1';
     }
+    
+    static async PM2(config) {
+        async function findGlobalEasyAIServerPath() {
+          try {
+            const command = `find / -name EasyAI_Server.js 2>/dev/null`;
+            const { stdout } = await execAsync(command);
+            const paths = stdout.split('\n').filter(path => path.trim() !== '');
+            return paths[0] || null;
+          } catch (error) {
+            console.error(`Error finding global EasyAI_Server.js: ${error}`);
+            return null;
+          }
+        }
+    
+        const serverScriptPath = './pm2_easyai_server.js';
+        const localServerPath = './EasyAI_Server.js';
+        const globalServerPath = await findGlobalEasyAIServerPath();
+    
+        const fileContent = `
+          (async () => {
+            let EasyAI_Server;
+            if (${existsSync(localServerPath)}) {
+              EasyAI_Server = (await import('${localServerPath}')).default;
+            } else {
+              EasyAI_Server = (await import('${globalServerPath}')).default;
+            }
+            const config = ${JSON.stringify(config)};
+            const server = new EasyAI_Server(config);
+            server.start();
+          })();
+        `;
+    
+        writeFileSync(serverScriptPath, fileContent);
+    
+        try {
+          const { stdout: pm2ListStdout } = await execAsync(`pm2 list`);
+          if (pm2ListStdout.includes('pm2_easyai_server')) {
+            await execAsync(`pm2 delete pm2_easyai_server`);
+          }
+    
+          await execAsync(`pm2 start ${serverScriptPath}`);
+          console.log("PM2 process successfully managed.");
+          return true;
+        } catch (error) {
+          console.error(`PM2 process management error: ${error.message}`);
+          return false;
+        }
+      }
 
     start() {
         this.server.listen(this.port, () => {

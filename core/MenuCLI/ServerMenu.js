@@ -84,8 +84,17 @@ options : [
     {
     name : ColorText.yellow('⚡ Iniciar Servidor ⚡'),
     action : () => {
-        let server = new EasyAI.Server({token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
-        server.start()
+
+        if(withPM2){
+            EasyAI.Server.PM2({token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
+        } else {
+            let server = new EasyAI.Server({token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
+            server.start()
+        }
+
+        
+
+        
     }
     },
     {
