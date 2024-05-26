@@ -4,7 +4,7 @@ import { networkInterfaces } from 'os';
 import { URL } from 'url';
 import { exec } from 'child_process';
 import { writeFileSync, existsSync } from 'fs';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 
 function execAsync(command) {
@@ -152,27 +152,24 @@ class EasyAI_Server {
     
     static async PM2(config) {
         async function findEasyAIServerPath() {
-          let filePath = './core/EasyAI_Server.js';
-          if (!existsSync(path.resolve(process.cwd(), filePath))) {
-            const currentModuleUrl = import.meta.url;
-            const currentModulePath = fileURLToPath(currentModuleUrl);
-            const currentModuleDir = path.dirname(currentModulePath);
-            filePath = path.join(currentModuleDir, 'EasyAI_Server.js');
+            let filePath = './EasyAI.js';
+            if (!existsSync(path.resolve(process.cwd(), filePath))) {
+              const currentModuleUrl = import.meta.url;
+              const currentModulePath = fileURLToPath(currentModuleUrl);
+              const currentModuleDir = path.dirname(currentModulePath);
+              const parentDir = path.dirname(currentModuleDir);
+              filePath = path.join(parentDir, 'EasyAI.js');
+            }
+            return pathToFileURL(filePath).href;
           }
-          return filePath;
-        }
     
         const serverScriptPath = './pm2_easyai_server.mjs';
         const easyAIServerPath = await findEasyAIServerPath();
     
-        const fileContent = `
-          (async () => {
-            import EasyAI_Server from '${easyAIServerPath}'
-            const config = ${JSON.stringify(config)};
-            const server = new EasyAI_Server(config);
-            server.start();
-          })();
-        `;
+        const fileContent = `import EasyAI from '${easyAIServerPath}'
+const config = ${JSON.stringify(config)}
+const server = new EasyAI.Server(config)
+server.start()`;
     
         writeFileSync(serverScriptPath, fileContent);
     
