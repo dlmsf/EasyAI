@@ -6,6 +6,7 @@ import { exec } from 'child_process';
 import { writeFileSync, existsSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
+import PM2 from './useful/PM2.js'
 
 function execAsync(command) {
     return new Promise((resolve, reject) => {
@@ -172,7 +173,11 @@ const server = new EasyAI.Server(config)
 server.start()`;
     
         writeFileSync(serverScriptPath, fileContent);
-    
+          
+        if(!(await PM2.Check())){
+            await PM2.Install()
+        }
+
         try {
           const { stdout: pm2ListStdout } = await execAsync(`pm2 list`);
           if (pm2ListStdout.includes('pm2_easyai_server')) {
