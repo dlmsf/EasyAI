@@ -49,6 +49,7 @@ let save_options = async (delmenu = false) => {
                 easyai_config = save.EasyAI_Config || {}
                 easyai_port = save.Port || 4000
                 easyai_token = save.Token || undefined
+                withPM2 = save.PM2
                 MenuCLI.displayMenu(CustomServer)
                 } else {
                     let response = await MenuCLI.displayMenuFromOptions(`Confirm delete of ${ColorText.cyan(e)}? This is ${ColorText.red('irreversible.')}`,[ColorText.green('yes'),ColorText.red('no')])
@@ -199,7 +200,7 @@ options : [
         name : '📑 SALVAR CONFIGURAÇÕES',
         action : async  () => {
                 let name =  await MenuCLI.ask('Qual nome deseja inserir ? : ')
-                 await ServerSaves.Save(name,{token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
+                 await ServerSaves.Save(name,{pm2 : withPM2,token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
                  .then(() => {
                     MenuCLI.displayMenu(CustomServer,{props : {save_message : '✔️ Configurações salvas com sucesso !'}})
                  })

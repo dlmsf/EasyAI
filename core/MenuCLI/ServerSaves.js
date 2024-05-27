@@ -12,7 +12,7 @@ class ServerSaves {
     }
   }
 
-  static async Save(name, { token, port, EasyAI_Config = {} }) {
+  static async Save(name, { pm2,token, port, EasyAI_Config = {} }) {
     await this.ensureFileExists();
     const data = JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
     const existingIndex = data.findIndex((save) => save.Name === name);
@@ -21,7 +21,7 @@ class ServerSaves {
       throw new Error(`Save with name ${name} already exists.`);
     }
 
-    data.push({ Name: name,Token : token, Port: port, EasyAI_Config });
+    data.push({ Name: name,Token : token,PM2 : pm2, Port: port, EasyAI_Config });
     await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2));
   }
 
