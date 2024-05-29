@@ -62,9 +62,10 @@ options : [
     },
     {
         name : 'WebGPT Server',
-        action : () => {
-            new EasyAI.WebGPT({easyai_url : props.server_url,easyai_port : props.server_port,openai_token : props.openai_token,openai_model : props.openai_model})
-                }
+        action : async () => {
+            await EasyAI.WebGPT.PM2({easyai_url : props.server_url,easyai_port : props.server_port,openai_token : props.openai_token,openai_model : props.openai_model})
+                MenuCLI.displayMenu(SandboxMenu,{props : props,alert_emoji : '✔️',alert : 'WebGPT PM2 Server iniciado com sucesso !'})
+            }
         },
     {
         name : '← Voltar',
