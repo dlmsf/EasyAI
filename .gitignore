@@ -7,3 +7,5 @@ tests
 bench
 saves.json
 config.json
+pm2_webgpt.mjs
+pm2_easyai_server.mjs
