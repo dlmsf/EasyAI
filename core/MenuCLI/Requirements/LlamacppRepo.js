@@ -4,6 +4,8 @@ import { join } from 'path';
 import https from 'https';
 import { pipeline } from 'stream';
 import { promisify } from 'util';
+import { fileURLToPath, pathToFileURL } from 'url';
+import path from 'path';
 
 const execAsync = promisify(exec);
 
