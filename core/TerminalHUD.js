@@ -58,6 +58,19 @@ class TerminalHUD {
     }
   }
 
+  pressWait() {
+    return new Promise(resolve => {
+      console.log('\nPress any key to continue...');
+      const onKeyPress = () => {
+        process.stdin.setRawMode(false);
+        process.stdin.removeListener('data', onKeyPress);
+        resolve();
+      };
+      process.stdin.setRawMode(true);
+      process.stdin.once('data', onKeyPress);
+    });
+  }
+
   close() {
     this.rl.close();
   }
