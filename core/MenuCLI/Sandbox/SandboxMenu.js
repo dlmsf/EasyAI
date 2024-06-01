@@ -7,9 +7,10 @@ import readline from 'readline';
 import Chat from '../../ChatModule/Chat.js'
 import TerminalGenerate from '../../TerminalGenerate.js'
 import ColorText from '../../useful/ColorText.js'
+import PM2 from '../../useful/PM2.js'
 
 
-const SandboxMenu = (props) => ({
+const SandboxMenu = async (props) => ({
     title : `☕ Sandbox | ${props.openai_token ? `OpenAI ${props.openai_model ? `(${ColorText.cyan(props.openai_model)})` : ''}` : `${props.server_url}${(props.server_port) ? `:${props.server_port}` : ''}`}
 `,
 options : [
@@ -61,10 +62,18 @@ options : [
             }
     },
     {
-        name : 'WebGPT Server',
+        name : `WebGPT Server | ${(await PM2.Process('pm2_webgpt')) ? ColorText.green('ON') : ColorText.red('OFF')}`,
         action : async () => {
-            await EasyAI.WebGPT.PM2({easyai_url : props.server_url,easyai_port : props.server_port,openai_token : props.openai_token,openai_model : props.openai_model})
+
+            if(await PM2.Process('pm2_webgpt')){
+                await PM2.Delete('pm2_webgpt')
+                MenuCLI.displayMenu(SandboxMenu,{props : props,alert_emoji : '✔️',alert : 'WebGPT PM2 Server finalizado'})
+            } else {
+                await EasyAI.WebGPT.PM2({easyai_url : props.server_url,easyai_port : props.server_port,openai_token : props.openai_token,openai_model : props.openai_model})
                 MenuCLI.displayMenu(SandboxMenu,{props : props,alert_emoji : '✔️',alert : 'WebGPT PM2 Server iniciado com sucesso !'})
+            }
+
+            
             }
         },
     {
