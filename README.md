@@ -7,8 +7,6 @@
 # Flash
 ⚙️ ```req```
 
-💾  ```ai save_name```
-
 💬 ```chat```
 
 💡 ```generate```
