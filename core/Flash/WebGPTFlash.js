@@ -15,7 +15,7 @@ if(await PM2.Process('pm2_webgpt')){
             name : '❌ Finalizar WebGPT',
             action : async () =>{
                 console.clear()
-                await PM2.Delete('pm2_webgpt')
+                await PM2.Delete('pm2_webgpt pm2_easyai_server')
                 process.exit()
             }
             },
