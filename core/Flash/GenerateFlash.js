@@ -28,7 +28,6 @@ if (args.length > 0) {
     ai = new EasyAI({server_url : 'localhost',server_port : 4000})
 }
 
-
 console.clear()
 
         new TerminalGenerate(async (input,display) => {
