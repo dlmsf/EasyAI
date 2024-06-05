@@ -103,7 +103,7 @@ class LlamacppRepo {
         }
     }
 
-    static async getCommitHashesAndDates() {
+    static async getCommitHashesAndDates(itemsPerPage) {
         if (this.directoryExists()) {
             try {
                 const { stdout } = await execAsync(`cd "${this.llamaCPPDir}" && git log --pretty=format:%H,%cd --date=format:%d/%m/%Y`);
@@ -112,6 +112,18 @@ class LlamacppRepo {
                     const [hash, date] = line.split(',');
                     return { date, hash };
                 });
+    
+                if (itemsPerPage) {
+                    const paginatedCommits = [];
+                    for (let i = 0; i < commits.length; i += itemsPerPage) {
+                        paginatedCommits.push({
+                            page: Math.floor(i / itemsPerPage) + 1,
+                            hash_array: commits.slice(i, i + itemsPerPage)
+                        });
+                    }
+                    return paginatedCommits;
+                }
+    
                 return commits;
             } catch (error) {
                 console.error('Failed to get the commit hashes and dates:', error);
@@ -122,6 +134,7 @@ class LlamacppRepo {
             return null;
         }
     }
+    
     
     
 

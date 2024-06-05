@@ -5,10 +5,10 @@ import LlamacppRepo from "./LlamacppRepo.js";
 import WindowsMenu from "./WindowsMenu.js";
 import ColorText from "../../useful/ColorText.js";
 
-let hash_options = async () => {
+let hash_options = async (page = 1) => {
 let finaloptions = []
-let commits_array = await LlamacppRepo.getCommitHashesAndDates()
-commits_array.forEach((e,i) => {
+let commits_array = await LlamacppRepo.getCommitHashesAndDates(10)
+commits_array[page-1].hash_array.forEach((e,i) => {
     if(i < 20){
     finaloptions.push({
         name : `${e.date} | ${e.hash.substring(0,7)}`,
@@ -20,8 +20,26 @@ commits_array.forEach((e,i) => {
 }
 })
 
+if(page > 1){
+    finaloptions.push({
+        name : `<- Prev. Page (${page-1})`,
+        action : async () => {
+            MenuCLI.displayMenu(HashByDate,{props : {page : page-1}}) 
+          }
+        })
+}
+
+if(page < commits_array.length){
 finaloptions.push({
-    name : '← Voltar',
+    name : `Next Page (${page+1}) ->`,
+    action : async () => {
+        MenuCLI.displayMenu(HashByDate,{props : {page : page+1}})
+        }
+    })
+}
+
+finaloptions.push({
+    name : '← Voltar - LlammaCPP Menu',
     action : async () => {
         MenuCLI.displayMenu(LlamaCPPMenu,{props : {hash : await LlamacppRepo.getCurrentCommitHash(),options : await cpp_options()}})
         }
@@ -31,9 +49,9 @@ return finaloptions
 }
 
 const HashByDate = async (props) => ({
-    title : `🔍 Commits 
+    title : `🔍 Commits  | ${ColorText.blue(props.page ? `Page ${props.page}` : 'Page 1')}
 `,
-options : await hash_options()
+options : await hash_options(props.page)
 
 })
 
