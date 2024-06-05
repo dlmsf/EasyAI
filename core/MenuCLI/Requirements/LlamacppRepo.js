@@ -102,6 +102,29 @@ class LlamacppRepo {
             return null;
         }
     }
+
+    static async getCommitHashesAndDates() {
+        if (this.directoryExists()) {
+            try {
+                const { stdout } = await execAsync(`cd "${this.llamaCPPDir}" && git log --pretty=format:%H,%cd --date=format:%d/%m/%Y`);
+                const lines = stdout.split('\n');
+                const commits = lines.map(line => {
+                    const [hash, date] = line.split(',');
+                    return { date, hash };
+                });
+                return commits;
+            } catch (error) {
+                console.error('Failed to get the commit hashes and dates:', error);
+                return null;
+            }
+        } else {
+            console.error('Repository does not exist. Cannot get commit hashes and dates.');
+            return null;
+        }
+    }
+    
+    
+
 }
 
-export default LlamacppRepo;
+export default LlamacppRepo
