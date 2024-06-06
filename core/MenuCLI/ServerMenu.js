@@ -232,6 +232,9 @@ let server_menu_options = async () => {
             easyai_config.llama = {}
             easyai_config.llama.cuda = true
         }
+        if(ConfigManager.getKey('start-pm2')){
+           withPM2 = true
+        }
         let server = new EasyAI.Server({EasyAI_Config : easyai_config})
         server.start()
     }
@@ -244,7 +247,11 @@ let server_menu_options = async () => {
             easyai_config.llama = {}
             easyai_config.llama.cuda = true
         }
-        withPM2 = false
+        if(ConfigManager.getKey('start-pm2')){
+            withPM2 = true
+         } else {
+            withPM2 = false
+         }
         easyai_port = 4000
         easyai_token = undefined
         MenuCLI.displayMenu(CustomServer)

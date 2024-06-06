@@ -8,7 +8,18 @@ const SettingsMenu = () => ({
 `,
 options : [
     {
-    name : `Start w/CUDA | ${(ConfigManager.getKey('start-cuda') ? ColorText.green('ON') : ColorText.red('OFF'))}`,
+        name : `Start ${ColorText.cyan('w/PM2')} | ${(ConfigManager.getKey('start-pm2') ? ColorText.green('ON') : ColorText.red('OFF'))}`,
+        action : () => {
+            if(ConfigManager.getKey('start-pm2')){
+                ConfigManager.setKey('start-pm2',false)
+            } else {
+                ConfigManager.setKey('start-pm2',true)
+            }
+            MenuCLI.displayMenu(SettingsMenu)
+        }
+        },
+    {
+    name : `Start ${ColorText.cyan('w/CUDA')} | ${(ConfigManager.getKey('start-cuda') ? ColorText.green('ON') : ColorText.red('OFF'))}`,
     action : () => {
         if(ConfigManager.getKey('start-cuda')){
             ConfigManager.setKey('start-cuda',false)
