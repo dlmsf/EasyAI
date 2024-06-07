@@ -4,6 +4,7 @@ import StartMenu from "../StartMenu.js";
 import LlamacppRepo from "./LlamacppRepo.js";
 import WindowsMenu from "./WindowsMenu.js";
 import ColorText from "../../useful/ColorText.js";
+import PM2 from "../../useful/PM2.js";
 
 let hash_options = async (page = 1) => {
 let finaloptions = []
@@ -103,14 +104,15 @@ let cpp_options = async () => {
     
         final_array.push({
         name : '← Voltar',
-        action : () => {
-            MenuCLI.displayMenu(RequirementsMenu)
+        action : async () => {
+            let pm2_status = await PM2.Check()
+            MenuCLI.displayMenu(RequirementsMenu,{props : {pm2_status : pm2_status}})
             }
         })
         return final_array
         }
 
-const RequirementsMenu = () => ({
+const RequirementsMenu = async (props) => ({
     title : `🔍 Requirements
 `,
 options : [
@@ -132,6 +134,19 @@ options : [
             MenuCLI.displayMenu(LlamaCPPMenu,{props : {hash : await LlamacppRepo.getCurrentCommitHash(),options : await cpp_options()}})
             }
         },
+        {
+            name : props.pm2_status ? `${ColorText.green('PM2')}`:`${ColorText.red('PM2')} | Install`,
+            action : async () => {
+                if(props.pm2_status){
+                    let pm2_status = await PM2.Check()
+                    MenuCLI.displayMenu(RequirementsMenu,{props : {pm2_status : pm2_status}})
+                } else {
+                    await PM2.Install()
+                    let pm2_status = await PM2.Check()
+                    MenuCLI.displayMenu(RequirementsMenu,{props : {pm2_status : pm2_status}})
+                }
+                }
+            },
     {
         name : '← Voltar',
         action : () => {

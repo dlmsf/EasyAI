@@ -3,6 +3,7 @@ import MenuCLI from "./MenuCLI.js";
 import SandboxConfig from "./Sandbox/SandboxConfig.js";
 import RequirementsMenu from "./Requirements/RequirementsMenu.js";
 import SettingsMenu from "./Settings/SettingsMenu.js";
+import PM2 from "../useful/PM2.js";
 
 const StartMenu = () => ({
     title : `✔️ EasyAI
@@ -22,8 +23,9 @@ options : [
     },
     {
         name : '⚙️ Requirements',
-        action : () => {
-            MenuCLI.displayMenu(RequirementsMenu)
+        action : async () => {
+            let pm2_status = await PM2.Check()
+            MenuCLI.displayMenu(RequirementsMenu,{props : {pm2_status : pm2_status}})
             }
         },
         {

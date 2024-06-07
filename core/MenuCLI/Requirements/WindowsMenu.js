@@ -1,6 +1,7 @@
 import MenuCLI from "../MenuCLI.js";
 import RequirementsMenu from "./RequirementsMenu.js";
 import W64 from "./W64.js";
+import PM2 from "../../useful/PM2.js";
 
 const WindowsMenu = () => ({
     title : `⚙️ Windows Requirements | (terminal as an administrator)
@@ -15,8 +16,9 @@ options : [
     },
     {
         name : '← Voltar',
-        action : () => {
-            MenuCLI.displayMenu(RequirementsMenu)
+        action : async () => {
+            let pm2_status = await PM2.Check()
+            MenuCLI.displayMenu(RequirementsMenu,{props : {pm2_status : pm2_status}})
             }
         }
      ]
