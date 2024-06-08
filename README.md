@@ -17,7 +17,7 @@
 
 # Default Usage
 ```
-npm install @massudy/easyai
+npm i @massudy/easyai
 ```
 ## ⚙️ Requirements
 
