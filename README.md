@@ -8,7 +8,7 @@
 ⚙️ ```req```
 <br>
 <details>
-  <summary>🌐 General</summary> <br>
+  <summary>⭐ General</summary> <br>
 
  📟 `do` <br>
  <br>
