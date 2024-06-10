@@ -27,6 +27,7 @@
  <br>
  🦙 `chat llama` <br>
  <br>
+  📡 `chat openai`<br>
  
 </details>
 
