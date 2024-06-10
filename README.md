@@ -6,14 +6,32 @@
 
 # Flash
 ⚙️ ```req```
+<br>
+<details>
+  <summary>🌐 General</summary> <br>
 
-📟 ```do```
+ 📟 `do` <br>
+ <br>
+💬 ```chat```<br>
+ <br>
+💡 ```generate```<br>
+ <br>
+🌐 ```webgpt``` <br>
+ <br>
+</details>
 
-💬 ```chat```
+<details>
+  <summary>🔥 Hot</summary> <br>
 
-💡 ```generate```
+ 👑 `chat phi`<br>
+ <br>
+ 🦙 `chat llama` <br>
+ <br>
+ 
+</details>
 
-🌐 ```webgpt```
+
+
 
 # Default Usage
 ```
