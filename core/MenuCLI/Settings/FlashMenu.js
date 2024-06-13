@@ -4,6 +4,42 @@ import ConfigManager from '../../ConfigManager.js'
 import SettingsMenu from "./SettingsMenu.js"
 import ServerSaves from "../ServerSaves.js"
 
+const FlashGenerate = () => ({
+    title : `Generate Command Configuration
+`,
+options : [
+    {
+    name : `💾 Default Save ${ConfigManager.getKey('defaultgeneratesave') ? `| ${ColorText.cyan(ConfigManager.getKey('defaultgeneratesave'))}` : '' }`,
+    action : async () => {
+          const saves = await ServerSaves.List()
+          let options = []
+          saves.forEach(e => {
+            options.push(e)
+          })
+          options.push('OpenAI')
+          options.push('🗑️ Clear')
+          options.push('← Cancel')
+        
+         let result = await MenuCLI.displayMenuFromOptions('Choose the save',options)
+
+         if(result != '← Cancel' && !undefined && result != '🗑️ Clear'){
+            ConfigManager.setKey('defaultgeneratesave',result)
+            MenuCLI.displayMenu(FlashGenerate)
+         } else {
+            if(result == '🗑️ Clear'){ConfigManager.deleteKey('defaultgeneratesave')}
+            MenuCLI.displayMenu(FlashGenerate)
+         }
+         }
+    },
+    {
+    name : '← Voltar',
+    action : () => {
+        MenuCLI.displayMenu(FlashMenu)
+            }
+        }
+]
+})
+
 const FlashChat = () => ({
     title : `Chat Command Configuration
 `,
@@ -16,6 +52,7 @@ options : [
           saves.forEach(e => {
             options.push(e)
           })
+          options.push('OpenAI')
           options.push('🗑️ Clear')
           options.push('← Cancel')
         
@@ -52,7 +89,7 @@ options : [
     {
     name : 'generate',
     action : () => {
-        MenuCLI.displayMenu(SettingsMenu)
+        MenuCLI.displayMenu(FlashGenerate)
         }
     },
     {
