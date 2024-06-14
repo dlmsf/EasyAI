@@ -6,13 +6,14 @@ import TerminalChat from "../TerminalChat.js"
 import ChatPrompt from "../MenuCLI/Sandbox/ChatPrompt.js"
 import PM2 from "../useful/PM2.js"
 import ServerSaves from "../MenuCLI/ServerSaves.js"
+import ConfigManager from "../ConfigManager.js"
 
 let ai
 
 const args = process.argv.slice(2);
 
-if (args.length > 0) {
-    await ServerSaves.Load(args[0])
+if (args.length > 0 || ConfigManager.getKey('defaultchatsave')){
+    await ServerSaves.Load((args.length > 0) ? args[0] : ConfigManager.getKey('defaultchatsave'))
     .then(async (save) => {
 
             await EasyAI.Server.PM2({token : save.Token,port : save.Port,EasyAI_Config : save.EasyAI_Config})
