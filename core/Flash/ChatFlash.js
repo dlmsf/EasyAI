@@ -7,6 +7,7 @@ import ChatPrompt from "../MenuCLI/Sandbox/ChatPrompt.js"
 import PM2 from "../useful/PM2.js"
 import ServerSaves from "../MenuCLI/ServerSaves.js"
 import ConfigManager from "../ConfigManager.js"
+import ColorText from '../useful/ColorText.js'
 
 let ai
 
