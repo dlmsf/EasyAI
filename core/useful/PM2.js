@@ -4,19 +4,25 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 class PM2 {
-    static async Check() {
-        try {
-          const { stdout } = await execAsync('npm list -g pm2');
-          if (stdout.includes('pm2@')) {
-            return true; // PM2 is found in the list of global packages
-          } else {
-            return false; // PM2 is not found
-          }
-        } catch (error) {
-          return false; // Error occurred, likely PM2 is not installed
-        }
+  static async Check(config = { printExecutionTime: false }) {
+    const startTime = Date.now();
+    try {
+      const { stdout } = await execAsync('npm list -g pm2');
+      const result = stdout.includes('pm2@'); // PM2 is found in the list of global packages
+      if (config.printExecutionTime) {
+        const endTime = Date.now();
+        console.log(`Execution time: ${endTime - startTime} ms`);
       }
-
+      return result;
+    } catch (error) {
+      if (config.printExecutionTime) {
+        const endTime = Date.now();
+        console.log(`Execution time: ${endTime - startTime} ms`);
+      }
+      return false; // Error occurred, likely PM2 is not installed
+    }
+  }
+  
   static async Install() {
     try {
       console.log('Installing PM2 globally...');
