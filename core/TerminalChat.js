@@ -50,7 +50,7 @@ class TerminalChat {
   async processInput(input) {
     const colorCyan = '\x1b[36m'; // ANSI escape code for cyan
     const resetColor = '\x1b[0m'; // ANSI escape code to reset the color
-    process.stdout.write(colorCyan + 'AI:' + resetColor);
+    process.stdout.write(colorCyan + 'AI: ' + resetColor);
     await this.processInputFunction(input, this.displayToken.bind(this));
     process.stdout.write('\n');
   }
