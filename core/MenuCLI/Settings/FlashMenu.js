@@ -19,7 +19,8 @@ options : [
           options.push('OpenAI')
           options.push('🗑️ Clear')
           options.push('← Cancel')
-        
+          
+          console.clear()  
          let result = await MenuCLI.displayMenuFromOptions('Choose the save',options)
 
          if(result != '← Cancel' && !undefined && result != '🗑️ Clear'){
@@ -56,6 +57,7 @@ options : [
           options.push('🗑️ Clear')
           options.push('← Cancel')
         
+         console.clear()  
          let result = await MenuCLI.displayMenuFromOptions('Choose the save',options)
 
          if(result != '← Cancel' && !undefined && result != '🗑️ Clear'){
@@ -91,7 +93,8 @@ options : [
           options.push('OpenAI')
           options.push('🗑️ Clear')
           options.push('← Cancel')
-        
+          
+         console.clear() 
          let result = await MenuCLI.displayMenuFromOptions('Choose the save',options)
 
          if(result != '← Cancel' && !undefined && result != '🗑️ Clear'){
