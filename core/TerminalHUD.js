@@ -41,13 +41,25 @@ class TerminalHUD {
 
   async displayMenuFromOptions(question, options) {
     console.log(`\n${question}\n`);
+    let optionIndex = 1;
     for (let index = 0; index < options.length; index++) {
-      console.log(`${index + 1}. ${await options[index]}`);
+      if (Array.isArray(options[index])) {
+        let line = '';
+        for (let subIndex = 0; subIndex < options[index].length; subIndex++) {
+          line += `${optionIndex}. ${await options[index][subIndex]} `;
+          optionIndex++;
+        }
+        console.log(line.trim());
+      } else {
+        console.log(`${optionIndex}. ${await options[index]}`);
+        optionIndex++;
+      }
     }
-
+  
     const choice = parseInt(await this.ask('Choose an option: '));
-    return options[choice - 1];
+    return options.flat()[choice - 1];
   }
+  
 
   async displayMenu(menuGenerator,config = {props : {},clearScreen : true,alert : undefined,alert_emoji : '⚠️'}) {
     if(config.clearScreen == undefined){config.clearScreen = true}
