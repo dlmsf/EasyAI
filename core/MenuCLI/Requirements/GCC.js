@@ -59,25 +59,43 @@ class GCC {
         }
     }
 
-    static async Check() {
+/**
+ * Checks the GCC version.
+ * 
+ * @param {Object} [config] - Optional configuration object.
+ * @param {boolean} [config.printAndWait] - If true, prints the version and waits for a key press.
+ * @returns {Promise<boolean>|Promise<void>} Returns a Promise that resolves to a boolean indicating whether the GCC version is higher than 8.5.0, or resolves when a key is pressed if config.printAndWait is true. Returns false if an error occurs.
+ */
+
+    static async Check(config = {}) {
         try {
             console.log('Checking GCC version...');
-            const version = await GCC.executeCommand('gcc --version');
-            console.log(version);
+            const versionOutput = await GCC.executeCommand('gcc --version');
+            const version = versionOutput.split('\n')[0].split(' ')[2]; // Assuming 'gcc (GCC) x.y.z' format
+            const versionParts = version.split('.').map(Number);
     
-            // Signal completion without manipulating stdin or closing readline.
-            // This requires the caller to handle the continuation of interaction.
-            console.log('Press any key to continue...');
-            return new Promise(resolve => {
-                // Listen for a single 'keypress' event.
-                process.stdin.once('data', () => {
-                    resolve();
+            if (config.printAndWait) {
+                console.log(versionOutput);
+                console.log('Press any key to continue...');
+                return new Promise(resolve => {
+                    process.stdin.once('data', () => {
+                        resolve();
+                    });
                 });
-            });
+            } else {
+                // Check if version is higher than 8.5.0
+                if (versionParts[0] > 8 || (versionParts[0] === 8 && versionParts[1] > 5) || (versionParts[0] === 8 && versionParts[1] === 5 && versionParts[2] > 0)) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
         } catch (error) {
             console.error('An error occurred:', error);
+            return false;
         }
     }
+    
 }
 
 export default GCC;

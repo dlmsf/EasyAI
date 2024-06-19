@@ -18,7 +18,7 @@ options : [
     {
     name : 'Check',
     action : async () => {
-       await GCC.Check()
+       await GCC.Check({printAndWait : true})
        MenuCLI.displayMenu(GCCMenu)
         }
     },
