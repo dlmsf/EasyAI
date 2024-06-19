@@ -17,13 +17,13 @@ options : [
             options.push(e)
           })
           options.push('OpenAI')
-          options.push('🗑️ Clear')
-          options.push('← Cancel')
+          options.push(['← Cancel |','🗑️ Clear'])
+          //options.push('← Cancel')
           
           console.clear()  
          let result = await MenuCLI.displayMenuFromOptions('Choose the save',options)
 
-         if(result != '← Cancel' && !undefined && result != '🗑️ Clear'){
+         if(result != '← Cancel |' && !undefined && result != '🗑️ Clear'){
             ConfigManager.setKey('defaultwebgptsave',result)
             MenuCLI.displayMenu(FlashWebGPT)
          } else {
