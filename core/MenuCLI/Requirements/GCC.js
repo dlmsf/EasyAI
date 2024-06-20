@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import { promises as fs } from 'fs';
 import os from 'os';
+import path from 'path'
 
 class GCC {
     static executeCommand(command) {
