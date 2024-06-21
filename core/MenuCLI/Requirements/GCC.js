@@ -33,7 +33,7 @@ class GCC {
         }
     }
 
-    static async Install() {
+    static async Install(config = {}) {
         try {
             console.log('Installing scl repo...');
             await GCC.executeCommand('yum install -y centos-release-scl');
@@ -50,28 +50,33 @@ class GCC {
                 console.log('Appending devtoolset-11 enable script to .bashrc...');
                 bashrcContent += `\n${enableString}\n`;
                 await fs.writeFile(bashrcPath, bashrcContent, 'utf8');
+            } else {
+                console.log('devtoolset-11 enable script already present in .bashrc.');
+            }
+
+            if (config.shRefresh) {
+                // Create a temporary script file
+                const scriptPath = '/tmp/refresh_bashrc.sh';
+                const scriptContent = `#!/bin/bash\nsource ${bashrcPath}`;
+                await fs.writeFile(scriptPath, scriptContent, 'utf8');
+          
+                // Make the script executable
+                await GCC.executeCommand(`chmod +x ${scriptPath}`);
+          
+                // Execute the script
+                console.log('Refreshing .bashrc file...');
+                await GCC.executeCommand(`bash ${scriptPath}`);
+              } else {
                 console.log('Please run "source ~/.bashrc" in your terminal to apply the effects.');
                 console.log('Press any key to continue...');
                 return new Promise(resolve => {
-                // Listen for a single 'keypress' event.
-                process.stdin.once('data', () => {
+                  process.stdin.once('data', () => {
                     resolve();
+                  });
                 });
-            });
-            } else {
-                console.log('devtoolset-11 enable script already present in .bashrc.');
-                console.log('Please run "source ~/.bashrc" in your terminal to apply the effects.');
-                console.log('')
-                console.log('Press any key to continue...');
-               return new Promise(resolve => {
-                // Listen for a single 'keypress' event.
-                process.stdin.once('data', () => {
-                    resolve();
-                });
-            });
-                
-                
-            }
+              }
+
+
         } catch (error) {
             console.error('An error occurred:', error);
         }
