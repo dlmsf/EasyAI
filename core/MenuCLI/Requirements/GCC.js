@@ -2,6 +2,7 @@ import { exec } from 'child_process';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path'
+import BashrcRefresh from '../../useful/BashrcRefresh.js';
 
 class GCC {
     static executeCommand(command) {
@@ -55,8 +56,7 @@ class GCC {
             }
 
             if (config.shRefresh) {
-                console.log('Refreshing .bashrc file...');
-                await GCC.executeCommand(`source ~/.bashrc`);
+                await BashrcRefresh()
               } else {
                 console.log('Please run "source ~/.bashrc" in your terminal to apply the effects.');
                 console.log('Press any key to continue...');

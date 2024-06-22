@@ -9,6 +9,8 @@ import System from '../useful/System.js';
 import CheckFile from '../useful/CheckFile.js';
 import LlamacppRepo from '../MenuCLI/Requirements/LlamacppRepo.js'
 import ConfigManager from '../ConfigManager.js';
+import BashrcRefresh from '../useful/BashrcRefresh.js';
+import FixBuildInfo from './FixBuildInfo.js';
 
 const Sleep = async (ms) => {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -124,6 +126,12 @@ async LlamaServer() {
     if (!cpp_path) {
         console.error('llama.cpp directory not found.');
         return;
+    }
+
+    let system = System()
+    if(system == 'linux'){
+        await BashrcRefresh()
+        FixBuildInfo()
     }
 
     console.log('Executing command lines...');
