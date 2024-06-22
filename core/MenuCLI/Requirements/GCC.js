@@ -55,10 +55,10 @@ class GCC {
                 console.log('devtoolset-11 enable script already present in .bashrc.');
             }
 
-            if (config.shRefresh) {
-                await BashrcRefresh()
-              } else {
-                console.log('Please run "source ~/.bashrc" in your terminal to apply the effects.');
+            await BashrcRefresh()
+
+            if (!config.quiet) {
+                console.log('Please run "source ~/.bashrc" in your terminal to apply the effects in entire system.');
                 console.log('Press any key to continue...');
                 return new Promise(resolve => {
                   process.stdin.once('data', () => {
