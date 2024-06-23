@@ -1,10 +1,11 @@
 # EasyAI 
+<br>
 
 🔧 ```npm i -g @massudy/easyai```
 
 ‎ 🌎 ```ai```
+# 
 
-# Flash
  📟 `do`
  
 💬 ```chat```
