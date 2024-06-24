@@ -3,8 +3,10 @@
 🔧 ```npm i -g @massudy/easyai```
 
 ‎ 🌎 ```ai```
+<br>
 
-# Flash
+# 🌩️
+
  📟 `do`
  
 💬 ```chat```
