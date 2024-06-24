@@ -4,9 +4,18 @@ import GCC from "./GCC.js";
 import CUDA from "./CUDA.js";
 import PM2 from "../../useful/PM2.js";
 import ColorText from "../../useful/ColorText.js";
+import BashrcRefresh from "../../useful/BashrcRefresh.js";
+import System from "../../useful/System.js";
+
+let BashAndCheck = async () => {
+    if(System() == 'linux'){
+        await BashrcRefresh()
+    }
+    return await GCC.Check()
+}
 
 const GCCMenu = async () => ({
-    title : `${(await GCC.Check()) ? ColorText.green('GCC') : ColorText.red('GCC')}
+    title : `${(await BashAndCheck()) ? ColorText.green('GCC') : ColorText.red('GCC')}
 `,
 options : [
     {
