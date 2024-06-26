@@ -25,7 +25,7 @@ let prevnext = []
 
 if(page > 1){
     prevnext.push({
-        name : `<- Prev. Page (${page-1})`,
+        name : `<- (${page-1}) Prev. Page`,
         action : async () => {
             MenuCLI.displayMenu(HashByDate,{props : {page : page-1}}) 
           }
