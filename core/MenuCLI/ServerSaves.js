@@ -37,6 +37,23 @@ class ServerSaves {
     return save;
   }
 
+  static async Rename(oldName, newName) {
+    await this.ensureFileExists();
+    let data = JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
+    const index = data.findIndex((save) => save.Name === oldName);
+  
+    if (index === -1) {
+      throw new Error(`Save with name ${oldName} does not exist.`);
+    }
+  
+    if (data.find((save) => save.Name === newName)) {
+      throw new Error(`Save with name ${newName} already exists.`);
+    }
+  
+    data[index].Name = newName;
+    await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2));
+  }
+
   static async List() {
     await this.ensureFileExists();
     const data = JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
