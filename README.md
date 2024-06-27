@@ -1,19 +1,7 @@
 # EasyAI 
-
 🔧 ```npm install -g @massudy/easyai```
 
-‎ 🌎 ```ai```
-<br>
-
-# 🌩️
-
- 📟 `do`
- 
-💬 ```chat```
-
-💡 ```generate```
-
-🌐 ```webgpt```
+‎🌎 ```ai```
 
 # Default Usage
 ```
@@ -78,6 +66,15 @@ console.log(await AI.Generate('The text below is cake recipe'))
 
 // This code will generate a cake recipe
 ```
+# CLI
+
+|  |‎🌎|💬| 💡 | 🌐 | 📟
+| --- | --- | --- | --- | --- | --- |
+| ⚡ | `ai` | `chat` | `generate` | `webgpt`| `do`
+| 👑| `ai phi` |`chat phi` | `generate phi` | `webgpt phi` | `do-phi`
+| 🦙| `ai llama` | `chat llama` | `generate llama` | `webgpt llama` | `do-llama`
+| 📡| `ai openai` |`chat openai` | `generate openai` | `webgpt openai` | `do-openai` 
+| 💾| `ai <save_name>` |`chat <save_name>` | `generate <save_name>` | `webgpt <save_name>` | `do-<save_name>`
 
 ---
 
