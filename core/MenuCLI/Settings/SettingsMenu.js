@@ -85,6 +85,18 @@ options : [
             MenuCLI.displayMenu(FlashMenu)
             }
         },
+        {
+            name : `Auto Model | ${ConfigManager.getKey('automodel-smaller') ? ColorText.cyan('Smaller') : ColorText.magenta('Bigger') }`,
+            action : () => {
+                if(ConfigManager.getKey('automodel-smaller')){
+                    ConfigManager.deleteKey('automodel-smaller')
+                } else {
+                    ConfigManager.setKey('automodel-smaller',true)
+                }
+                MenuCLI.displayMenu(SettingsMenu)    
+            }
+            },
+
     {
         name : '← Voltar',
         action : () => {
