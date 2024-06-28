@@ -289,7 +289,7 @@ async Generate(prompt = 'Once upon a time',config = {logerror : false, stream : 
             }
         }
     
-        const modelFilePath = await this.getLargestGGUF(modelsDir);
+        const modelFilePath = ConfigManager.getKey('automodel-smaller') ? this.getSmallestGGUF(modelsDir) : await this.getLargestGGUF(modelsDir);
         if (modelFilePath) {
             this.ModelPath = modelFilePath;
             console.log(`\nLlama Model successfully loaded: ${this.ModelPath}`);
@@ -321,6 +321,24 @@ async Generate(prompt = 'Once upon a time',config = {logerror : false, stream : 
             return false;
         }
     }
+
+    async getSmallestGGUF(dir) {
+        const files = await fsPromises.readdir(dir);
+        let smallestFilePath = '';
+        let smallestFileSize = Infinity;
+      
+        for (const file of files) {
+          if (file.endsWith('.gguf')) {
+            const filePath = join(dir, file);
+            const { size } = await fsPromises.stat(filePath);
+            if (size < smallestFileSize) {
+              smallestFileSize = size;
+              smallestFilePath = filePath;
+            }
+          }
+        }
+        return smallestFilePath;
+      }
 
     async getLargestGGUF(dir) {
         const files = await fsPromises.readdir(dir);
