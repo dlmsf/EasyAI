@@ -62,9 +62,7 @@ import EasyAI from '@massudy/easyai'
 
 const AI = new EasyAI()
 
-console.log(await AI.Generate('The text below is cake recipe'))
-
-// This code will generate a cake recipe
+const Recipe = await AI.Generate('The text below is cake recipe')
 ```
 # CLI
 
