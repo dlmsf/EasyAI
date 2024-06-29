@@ -201,14 +201,13 @@ options : [
         name : '📑 SALVAR CONFIGURAÇÕES',
         action : async  () => {
                 let name =  await MenuCLI.ask('Qual nome deseja inserir ? : ')
-                 await ServerSaves.Save(name,{pm2 : withPM2,token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
-                 .then(() => {
+                 let save_result = await ServerSaves.Save(name,{pm2 : withPM2,token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
+                 if(save_result === false){
+                    MenuCLI.displayMenu(CustomServer,{props : {save_message : '⛔ Save já existente'}})
+                 } else {
                     MenuCLI.displayMenu(CustomServer,{props : {save_message : '✔️ Configurações salvas com sucesso !'}})
-                 })
-                 .catch(e => {
-                    MenuCLI.displayMenu(CustomServer,{props : {save_message : '⛔ Erro ao salvar as configurações'}})
-                 })
-            }
+                 }
+         }
         },
     {
         name : '← Voltar',

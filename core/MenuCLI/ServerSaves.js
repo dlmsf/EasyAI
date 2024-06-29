@@ -18,11 +18,12 @@ class ServerSaves {
     const existingIndex = data.findIndex((save) => save.Name === name);
 
     if (existingIndex !== -1) {
-      throw new Error(`Save with name ${name} already exists.`);
+      return false
     }
 
     data.push({ Name: name,Token : token,PM2 : pm2, Port: port, EasyAI_Config });
     await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2));
+    return true
   }
 
   static async Load(name) {
