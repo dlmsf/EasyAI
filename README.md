@@ -62,7 +62,7 @@ import EasyAI from '@massudy/easyai'
 
 const AI = new EasyAI()
 
-const Recipe = await AI.Generate('The text below is cake recipe')
+const Music = await AI.Generate('The text below is classical music list')
 ```
 # CLI
 
