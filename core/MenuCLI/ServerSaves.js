@@ -26,6 +26,22 @@ class ServerSaves {
     return true
   }
 
+  static async ForceSave(name, { pm2, token, port, EasyAI_Config = {} }) {
+    await this.ensureFileExists();
+    let data = JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
+    const existingIndex = data.findIndex((save) => save.Name === name);
+
+    if (existingIndex !== -1) {
+      data[existingIndex] = { Name: name, Token: token, PM2: pm2, Port: port, EasyAI_Config };
+    } else {
+      data.push({ Name: name, Token: token, PM2: pm2, Port: port, EasyAI_Config });
+    }
+
+    await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2));
+    return true;
+  }
+
+  
   static async Load(name) {
     await this.ensureFileExists();
     const data = JSON.parse(await fs.promises.readFile(filePath, 'utf8'));
