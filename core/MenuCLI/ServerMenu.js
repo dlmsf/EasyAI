@@ -203,7 +203,14 @@ options : [
                 let name =  await MenuCLI.ask('Qual nome deseja inserir ? : ')
                  let save_result = await ServerSaves.Save(name,{pm2 : withPM2,token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
                  if(save_result === false){
-                    MenuCLI.displayMenu(CustomServer,{props : {save_message : '⛔ Save já existente'}})
+                  let result = await MenuCLI.displayMenuFromOptions(`⛔ Save já existente
+Deseja sobrescrever?`,['Sobescrever','Cancelar'])
+                    if(result == 'Sobescrever'){
+                        await ServerSaves.ForceSave(name,{pm2 : withPM2,token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
+                        MenuCLI.displayMenu(CustomServer,{props : {save_message : '✔️ Configurações salvas com sucesso !'}})
+                    } else {
+                        MenuCLI.displayMenu(CustomServer)
+                    }
                  } else {
                     MenuCLI.displayMenu(CustomServer,{props : {save_message : '✔️ Configurações salvas com sucesso !'}})
                  }
