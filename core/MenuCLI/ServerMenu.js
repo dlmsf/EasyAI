@@ -43,24 +43,34 @@ let save_options = async (config = {}) => {
     let saves_array = await ServerSaves.List()
     saves_array.forEach(e => {
         final_array.push({
-            name : `${config.delmenu ? '❌ ' : ''}${e}`,
+            name : `${config.delmenu ? '❌ ' : (config.renmenu ? '🖊️ ' : '')}${e}`,
             action : async () => {
-                if(!config.delmenu){
+                if(!Object.keys(config).length){
                 let save = await ServerSaves.Load(e)
                 easyai_config = save.EasyAI_Config || {}
                 easyai_port = save.Port || 4000
                 easyai_token = save.Token || undefined
                 withPM2 = save.PM2
                 MenuCLI.displayMenu(CustomServer)
-                } else {
+                } else if (config.delmenu) {
                     let response = await MenuCLI.displayMenuFromOptions(`Confirm delete of ${ColorText.cyan(e)}? This is ${ColorText.red('irreversible.')}`,[ColorText.green('yes'),ColorText.red('no')])
                     if(response == ColorText.green('yes')){await ServerSaves.Delete(e)}  
                     MenuCLI.displayMenu(SavesMenu,{props : {options : await save_options({delmenu : true})}})
+                } else if (config.renmenu){
+                    let response = await MenuCLI.ask('Type the new name : ')
+                    await ServerSaves.Rename(e,response)
+                    .then(async e => {
+                        MenuCLI.displayMenu(SavesMenu,{props : {alert : '✔️ Save renamed sucessfully !',options : await save_options({renmenu : true})}})
+                    })
+                    .catch(async e => [
+                        MenuCLI.displayMenu(SavesMenu,{props : {alert : 'Error',options : await save_options({renmenu : true})}})
+                    ])
                 }
+
                 }
             })
     })
-if(!config.delmenu){
+if(!Object.keys(config).length){
     final_array.push({
         type : 'options',
         value : [{
@@ -72,6 +82,7 @@ if(!config.delmenu){
             {
                 name : '🖊️ Renomear Save',
                 action : async () => {
+                    MenuCLI.displayMenu(SavesMenu,{props : {options : await save_options({renmenu : true})}})
                     }
                 }
         
@@ -81,7 +92,7 @@ if(!config.delmenu){
 final_array.push({
     name : `← Voltar ${config.delmenu ? '- Carregar Save' : ''}`,
     action : async () => {
-        if(!config.delmenu){MenuCLI.displayMenu(ServerMenu)} else {MenuCLI.displayMenu(SavesMenu,{props : {options : await save_options()}})}
+        if(!config.delmenu && !config.renmenu){MenuCLI.displayMenu(ServerMenu)} else {MenuCLI.displayMenu(SavesMenu,{props : {options : await save_options()}})}
         }
     })
 return final_array
