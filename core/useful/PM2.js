@@ -9,32 +9,33 @@ const execAsync = promisify(exec);
 class PM2 {
 
   static async Check(config = { printExecutionTime: false }) {
-  const startTime = Date.now();
-  try {
-    let globalNodeModules;
-    switch (os.platform()) {
-      case 'win32':
-        // On Windows, global packages are stored in %AppData%\npm\node_modules
-        globalNodeModules = path.join(process.env.APPDATA, 'npm', 'node_modules');
-        break;
-      default:
-        // On Unix-like systems, global packages are stored in /usr/local/lib/node_modules
-        globalNodeModules = '/usr/local/lib/node_modules';
+    const startTime = Date.now();
+    try {
+      let globalNodeModules;
+      switch (os.platform()) {
+        case 'win32':
+          // On Windows, global packages are stored in %AppData%\npm\node_modules
+          globalNodeModules = path.join(process.env.APPDATA, 'npm', 'node_modules');
+          break;
+        default:
+          // On Unix-like systems, get the global node_modules path dynamically using npm -g root
+          const { stdout } = await execAsync('npm -g root');
+          globalNodeModules = stdout.trim();
+      }
+      const result = fs.existsSync(path.join(globalNodeModules, 'pm2'));
+      if (config.printExecutionTime) {
+        const endTime = Date.now();
+        console.log(`Execution time: ${endTime - startTime} ms`);
+      }
+      return result;
+    } catch (error) {
+      if (config.printExecutionTime) {
+        const endTime = Date.now();
+        console.log(`Execution time: ${endTime - startTime} ms`);
+      }
+      return false; // Error occurred, likely PM2 is not installed
     }
-    const result = fs.existsSync(path.join(globalNodeModules, 'pm2'));
-    if (config.printExecutionTime) {
-      const endTime = Date.now();
-      console.log(`Execution time: ${endTime - startTime} ms`);
-    }
-    return result;
-  } catch (error) {
-    if (config.printExecutionTime) {
-      const endTime = Date.now();
-      console.log(`Execution time: ${endTime - startTime} ms`);
-    }
-    return false; // Error occurred, likely PM2 is not installed
   }
-}
   
   static async Install() {
     try {
