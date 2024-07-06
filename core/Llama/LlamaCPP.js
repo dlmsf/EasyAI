@@ -289,7 +289,7 @@ async Generate(prompt = 'Once upon a time',config = {logerror : false, stream : 
             }
         }
     
-        const modelFilePath = ConfigManager.getKey('automodel-smaller') ? this.getSmallestGGUF(modelsDir) : await this.getLargestGGUF(modelsDir);
+        const modelFilePath = ConfigManager.getKey('automodel-smaller') ? await this.getSmallestGGUF(modelsDir) : await this.getLargestGGUF(modelsDir);
         if (modelFilePath) {
             this.ModelPath = modelFilePath;
             console.log(`\nLlama Model successfully loaded: ${this.ModelPath}`);
