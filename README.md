@@ -16,7 +16,7 @@ npm install @massudy/easyai
 
   1. Install GCC:
      <pre>
-     sudo apt install -y gcc
+     sudo apt install -y gcc make
      </pre>
 
   2. Check the version:
