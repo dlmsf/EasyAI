@@ -42,5 +42,3 @@ function System(detectLinuxDistribution = false) {
 }
 
 export default System;
-
-console.log(System(true))
