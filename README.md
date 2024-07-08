@@ -82,14 +82,14 @@ const Music = await AI.Generate('The text below is classical music list')
 ```
 # CLI
 
-|  |‎🌎|💬| 💡 | 🌐 | 📟 | 📊
-| --- | --- | --- | --- | --- | --- | ---
-| ⚡ | `ai` | `chat` | `generate` | `webgpt`| `do` | `bench`
-| 👑| `ai phi` |`chat phi` | `generate phi` | `webgpt phi` | `do-phi` | `bench phi`
-| 🏎️| `ai groq` |`chat groq` | `generate groq` | `webgpt groq` | `do-groq` | `bench groq`
-| 🦙| `ai llama` | `chat llama` | `generate llama` | `webgpt llama` | `do-llama` | `bench llama`
-| 📡| `ai openai` |`chat openai` | `generate openai` | `webgpt openai` | `do-openai` | `bench openai`
-| 💾| `ai <save>` |`chat <save>` | `generate <save>` | `webgpt <save>` | `do-<save>` | `bench <save>`
+|  |‎🌎|💬| 💡 | 🌐 | 📟 
+| --- | --- | --- | --- | --- | --- 
+| ⚡ | `ai` | `chat` | `generate` | `webgpt`| `do` 
+| 👑| `ai phi` |`chat phi` | `generate phi` | `webgpt phi` | `do-phi` 
+| 🏎️| `ai groq` |`chat groq` | `generate groq` | `webgpt groq` | `do-groq`
+| 🦙| `ai llama` | `chat llama` | `generate llama` | `webgpt llama` | `do-llama` 
+| 📡| `ai openai` |`chat openai` | `generate openai` | `webgpt openai` | `do-openai` 
+| 💾| `ai <save>` |`chat <save>` | `generate <save>` | `webgpt <save>` | `do-<save>` 
 
 ---
 
