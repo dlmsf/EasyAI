@@ -9,7 +9,7 @@ import EasyAI_WebGPT from "./core/EasyAI_WebGPT.js";
 import ChatPrompt from "./core/MenuCLI/Sandbox/ChatPrompt.js";
 
 class EasyAI {
-    constructor(config = {openai_token : '',openai_model : undefined,server_url : '',server_port : 4000,server_token : '',llama : {server_port : undefined,git_hash : undefined,llama_model : '',cuda : false,gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined,mmap : undefined}}){
+    constructor(config = {openai_token : '',openai_model : undefined,server_url : '',server_port : 4000,server_token : '',llama : {cmake : false,server_port : undefined,git_hash : undefined,llama_model : '',cuda : false,gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined,mmap : undefined}}){
 
         this.ChatModule = new ChatModule()
         this.OpenAI = (config.openai_token) ? new OpenAI(config.openai_token,{model : config.openai_model}) : null
@@ -32,7 +32,8 @@ class EasyAI {
                 context : (config.llama) ? config.llama.context : undefined,
                 slots : (config.llama) ? config.llama.slots : undefined,
                 mlock : (config.llama) ? config.llama.mlock : undefined,
-                mmap : (config.llama) ? config.llama.mmap : undefined
+                mmap : (config.llama) ? config.llama.mmap : undefined,
+                cmake : (config.llama) ? config.llama.cmake : undefined
             })
         }
     }
