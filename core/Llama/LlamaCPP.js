@@ -86,7 +86,7 @@ async function CompletionPostRequest(bodyObject,config,streamCallback,port = 808
 }
 
 class LlamaCPP {
-    constructor(config = {cmake : false,server_port : undefined,git_hash : undefined ,modelpath : '',cuda : false,gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined,mmap : undefined}) {
+    constructor(config = {vulkan : false,cmake : false,server_port : undefined,git_hash : undefined ,modelpath : '',cuda : false,gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined,mmap : undefined}) {
         if (config.modelpath) {
             this.ModelPath = path.join(process.cwd(), config.modelpath);
         } else {
@@ -95,7 +95,6 @@ class LlamaCPP {
         this.GitHash = config.git_hash || undefined
         this.Cuda = config.cuda || false
         this.Context = (config.context) ? ((typeof config.context == 'number') ? config.context : 2048) : 2048
-        this.GPU_Layers = config.gpu_layers || this.Cuda ? 999 : undefined
         this.Threads = config.threads || undefined
         this.Slots = config.slots || undefined
         this.Mlock = config.mlock || false
@@ -107,7 +106,8 @@ class LlamaCPP {
         this.ServerPort = config.server_port || 8080
         this.ServerOn = false
         this.CMake_Build = config.cmake || false
-
+        this.Vulkan = config.vulkan || false    
+        this.GPU_Layers = config.gpu_layers || (this.Cuda || this.Vulkan) ? 999 : undefined
         this.Start()
         
     }
@@ -187,6 +187,7 @@ runMake(cpp_path) {
 runCmake(cpp_path) {
     return new Promise((resolve, reject) => {
       let args1 = ['-B', 'build'];
+      if(this.Vulkan){args1.push('-DLLAMA_VULKAN=1')}
       let cmake1 = spawn('cmake', args1, { cwd: cpp_path, stdio: 'inherit' });
   
       cmake1.on('exit', (code) => {
