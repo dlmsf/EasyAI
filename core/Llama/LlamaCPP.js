@@ -145,11 +145,16 @@ async LlamaServer() {
             }
         }
         
-        let system = System()
-        let has_build = await CheckFile('./llama.cpp/server.exe')
+        let has_make_build = await CheckFile('./llama.cpp/server.exe')
+        let has_cmake_build = await CheckFile('./llama.cpp/build/bin/server')
 
-        if(system == 'linux' || !has_build){
-        await this.runMake(cpp_path);
+        if(!has_make_build && !has_cmake_build){
+        if(this.CMake_Build){
+            await this.runCmake(cpp_path)
+        } else {
+            await this.runMake(cpp_path);
+        }   
+       
         }
         this.executeMain(cpp_path);
         await Sleep(2500) // REMOVER ESSA PORCARIA DEPOIS NÃO TM QUE ESPERAR COM SLEEP COISA NENHUMA, TEM QUE TER UMA VERIFICAÇÃO CORRETA
@@ -242,7 +247,9 @@ executeMain(cpp_path) {
             mainArgs.push(this.LoraPath)
         }
 
-        let executeMain = spawn('./server', mainArgs, { cwd: cpp_path, stdio: 'inherit' });
+        let path = this.CMake_Build ? './build/bin/server' : './server'
+
+        let executeMain = spawn(path, mainArgs, { cwd: cpp_path, stdio: 'inherit' });
 
         executeMain.on('exit', (code) => {
             if (code !== 0) {
