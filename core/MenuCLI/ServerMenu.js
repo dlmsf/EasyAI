@@ -197,11 +197,14 @@ options : [
                 }
                 },
     {
-    name : `CUDA | ${easyai_config.llama ? (easyai_config.llama.cuda ? ColorText.green('ON') : ColorText.red('OFF')) : ColorText.red('OFF')}`,
+    name : `GPU | ${easyai_config.llama ? (easyai_config.llama.cuda ? ColorText.green('CUDA') : (easyai_config.llama.vulkan ? ColorText.orange('Vulkan') : ColorText.red('OFF')) ) : ColorText.red('OFF')}`,
     action : () => {
                 if(easyai_config.llama){
                     if(easyai_config.llama.cuda){
-                        easyai_config.llama.cuda = false
+                        delete easyai_config.llama.cuda
+                        easyai_config.llama.vulkan = true
+                    } else if(easyai_config.llama.vulkan){
+                        delete easyai_config.llama.vulkan
                     } else {
                         easyai_config.llama.cuda = true
                     }
