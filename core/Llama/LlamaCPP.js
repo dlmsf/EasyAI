@@ -179,6 +179,38 @@ runMake(cpp_path) {
     });
 }
 
+runCmake(cpp_path) {
+    return new Promise((resolve, reject) => {
+      let args1 = ['-B', 'build'];
+      let cmake1 = spawn('cmake', args1, { cwd: cpp_path, stdio: 'inherit' });
+  
+      cmake1.on('exit', (code) => {
+        if (code !== 0) {
+          reject(new Error(`cmake process exited with code ${code}`));
+        } else {
+          let args2 = ['--build', 'build', '--config', 'Release', '-j'];
+          let cmake2 = spawn('cmake', args2, { cwd: cpp_path, stdio: 'inherit' });
+  
+          cmake2.on('exit', (code) => {
+            if (code !== 0) {
+              reject(new Error(`cmake build process exited with code ${code}`));
+            } else {
+              resolve();
+            }
+          });
+  
+          cmake2.on('error', (err) => {
+            reject(new Error('Error executing cmake build:', err));
+          });
+        }
+      });
+  
+      cmake1.on('error', (err) => {
+        reject(new Error('Error executing cmake:', err));
+      });
+    });
+  }
+
 executeMain(cpp_path) {
     return new Promise((resolve, reject) => {
         let mainArgs = ['-m', this.ModelPath, '-c', this.Context,'--port',this.ServerPort];
