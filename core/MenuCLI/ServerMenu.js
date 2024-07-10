@@ -197,7 +197,7 @@ options : [
                 }
                 },
     {
-    name : `GPU | ${easyai_config.llama ? (easyai_config.llama.cuda ? ColorText.green('CUDA') : (easyai_config.llama.vulkan ? ColorText.orange('Vulkan') : ColorText.red('OFF')) ) : ColorText.red('OFF')}`,
+    name : `GPU | ${easyai_config.llama ? (easyai_config.llama.cuda ? ColorText.green('CUDA') : (easyai_config.llama.vulkan ? `${ColorText.orange('Vulkan')} (cmake only)` : ColorText.red('OFF')) ) : ColorText.red('OFF')}`,
     action : () => {
                 if(easyai_config.llama){
                     if(easyai_config.llama.cuda){
