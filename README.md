@@ -85,9 +85,9 @@ const Music = await AI.Generate('The text below is classical music list')
 |  |‎🌎|💬| 💡 | 🌐 | 📟 
 | --- | --- | --- | --- | --- | --- 
 | ⚡ | `ai` | `chat` | `generate` | `webgpt`| `do` 
-| 👑| `ai phi` |`chat phi` | `generate phi` | `webgpt phi` | `do-phi` 
-| 🏎️| `ai groq` |`chat groq` | `generate groq` | `webgpt groq` | `do-groq`
+| 👑| `ai phi` |`chat phi` | `generate phi` | `webgpt phi` | `do-phi`
 | 🦙| `ai llama` | `chat llama` | `generate llama` | `webgpt llama` | `do-llama` 
+| 🏎️| `ai groq` |`chat groq` | `generate groq` | `webgpt groq` | `do-groq`
 | 📡| `ai openai` |`chat openai` | `generate openai` | `webgpt openai` | `do-openai` 
 | 💾| `ai <save>` |`chat <save>` | `generate <save>` | `webgpt <save>` | `do-<save>` 
 
