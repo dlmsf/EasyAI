@@ -145,7 +145,7 @@ async LlamaServer() {
             }
         }
         
-        let has_make_build = await CheckFile('./llama.cpp/server.exe')
+        let has_make_build = await CheckFile('./llama.cpp/server')
         let has_cmake_build = await CheckFile('./llama.cpp/build/bin/server')
 
         if(!has_make_build && !has_cmake_build){
@@ -249,7 +249,7 @@ executeMain(cpp_path) {
             mainArgs.push(this.LoraPath)
         }
 
-        let has_make_build = await CheckFile('./llama.cpp/server.exe')
+        let has_make_build = await CheckFile('./llama.cpp/server')
         let has_cmake_build = await CheckFile('./llama.cpp/build/bin/server')
         
         let path
