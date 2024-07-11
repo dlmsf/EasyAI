@@ -188,6 +188,7 @@ runCmake(cpp_path) {
     return new Promise((resolve, reject) => {
       let args1 = ['-B', 'build'];
       if(this.Vulkan){args1.push('-DLLAMA_VULKAN=1')}
+      if(this.Cuda){args1.push('-DGGML_CUDA=ON')}
       let cmake1 = spawn('cmake', args1, { cwd: cpp_path, stdio: 'inherit' });
   
       cmake1.on('exit', (code) => {
