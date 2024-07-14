@@ -118,6 +118,10 @@ async Chat(messages = [{role : 'user',content : 'Who won the world series in 202
         
     }
 
+async PrintGenerate(prompt){
+    console.log((await this.Generate(prompt)).full_text)
+}    
+
 static Sleep = async (ms) => {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
