@@ -167,7 +167,8 @@ async LlamaServer() {
 
 runMake(cpp_path) {
     return new Promise((resolve, reject) => {
-        let args = ['-j']
+        let args = []
+        if(this.JBuild){args.push('-j')}
         if(this.Cuda){args.push('LLAMA_CUBLAS=1')}
         let make = spawn('make', args, { cwd: cpp_path, stdio: 'inherit' });
 
