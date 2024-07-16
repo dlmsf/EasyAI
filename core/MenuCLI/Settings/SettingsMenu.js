@@ -96,6 +96,17 @@ options : [
                 MenuCLI.displayMenu(SettingsMenu)    
             }
             },
+            {
+                name : `Fast Build | ${(ConfigManager.getKey('jbuild') ? ColorText.green('ON') : ColorText.red('OFF'))}`,
+                action : () => {
+                    if(ConfigManager.getKey('jbuild')){
+                        ConfigManager.setKey('jbuild',false)
+                    } else {
+                        ConfigManager.setKey('jbuild',true)
+                    }
+                    MenuCLI.displayMenu(SettingsMenu)
+                    }
+                },
 
     {
         name : '← Voltar',
