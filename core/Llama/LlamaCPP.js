@@ -146,8 +146,15 @@ async LlamaServer() {
             }
         }
         
-        let has_make_build = await CheckFile('./llama.cpp/server')
-        let has_cmake_build = await CheckFile('./llama.cpp/build/bin/server')
+        let cpath
+        if(ConfigManager.getKey('llama-server-cmd')){
+            cpath = 'llama-server'
+            } else {
+            cpath = 'server'
+            }
+        let has_make_build = await CheckFile(`./llama.cpp/${cpath}`)
+
+        let has_cmake_build = await CheckFile(`./llama.cpp/build/bin/${cpath}`)
 
         if(!has_make_build && !has_cmake_build){
         if(this.CMake_Build){
