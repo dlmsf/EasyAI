@@ -3,6 +3,7 @@ import StartMenu from "../StartMenu.js"
 import ConfigManager from '../../ConfigManager.js'
 import ColorText from '../../useful/ColorText.js'
 import FlashMenu from "./FlashMenu.js"
+import RequirementsMenu from "../Requirements/RequirementsMenu.js"
 
 const LlamaCPP_Menu = () => ({
     title : `✏️ Settings / LlamaCPP Menu
@@ -30,6 +31,12 @@ options : [
                 MenuCLI.displayMenu(LlamaCPP_Menu)
             } 
             },
+            {
+                name : 'Install (Requirements Menu)',
+                action : () => {
+                    MenuCLI.displayMenu(RequirementsMenu)
+                    }
+                },
             {
                 name : '← Voltar - Settings MainMenu',
                 action : () => {
