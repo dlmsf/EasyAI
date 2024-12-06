@@ -38,7 +38,7 @@ if (args.length > 0 || ConfigManager.getKey('defaultchatsave')){
     
                 await EasyAI.Server.PM2({token : save.Token,port : save.Port,EasyAI_Config : save.EasyAI_Config})
                 console.log('✔️ PM2 Server iniciado com sucesso !')
-                ai = new EasyAI({server_url : 'localhost',server_port : 4000})
+                ai = new EasyAI({server_url : 'localhost',server_port : save.Port})
     
         }).catch(async e => {
     
