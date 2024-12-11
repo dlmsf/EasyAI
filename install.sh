@@ -35,25 +35,34 @@ install_debs() {
 copy_files() {
   local src_dir="$1"
   local dest_dir="$2"
+  
+  # Ensure destination directory exists
+  mkdir -p "$dest_dir"
+  
+  # Calculate total size of files to be copied (excluding ignored files)
+  local total_size
+  total_size=$(rsync -a --dry-run --stats --exclude-from="$src_dir/.gitignore" "$src_dir/" "$dest_dir" | grep "Total file size" | awk '{print $4}')
 
-  if [[ -f "$src_dir/.gitignore" ]]; then
-    mapfile -t ignore_patterns < "$src_dir/.gitignore"
-  else
-    ignore_patterns=()
-  fi
+  # Convert total size to MB for display
+  local total_size_mb=$(awk "BEGIN {printf \"%.2f\", $total_size/1024/1024}")
 
-  for file in "$src_dir"/*; do
-    relative_path="${file#$src_dir/}"
-    if [[ ! " ${ignore_patterns[*]} " =~ " $relative_path " ]]; then
-      if [[ -d "$file" ]]; then
-        mkdir -p "$dest_dir/$relative_path"
-        copy_files "$file" "$dest_dir/$relative_path"
-      else
-        cp "$file" "$dest_dir/$relative_path"
-      fi
-    fi
-  done
+  # Run rsync with progress and respect .gitignore
+  echo "Starting file copy with progress tracking..."
+  rsync -a --info=progress2 --exclude-from="$src_dir/.gitignore" "$src_dir/" "$dest_dir" | 
+  awk -v total_mb="$total_size_mb" '
+  {
+    if ($1 ~ /^[0-9]+$/) {
+      copied_mb = $1 / 1024 / 1024;
+      percentage = (copied_mb / total_mb) * 100;
+      printf "Copying files... %.2f MB / %.2f MB (%.1f%%)\r", copied_mb, total_mb, percentage;
+    }
+  }'
+
+  echo -e "\nCopy completed."
 }
+
+
+
 
 # Function to remove symbolic links
 remove_links() {
