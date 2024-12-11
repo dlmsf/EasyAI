@@ -21,12 +21,12 @@ options : [
         } 
         },
         {
-            name : `Server Command-line | ${ConfigManager.getKey('llama-server-cmd') ? ColorText.cyan('llama-server') : ColorText.yellow('server')}`,
+            name : `Server Command-line | ${ConfigManager.getKey('old-llama-server') ?  ColorText.yellow('server') : ColorText.cyan('llama-server')}`,
             action : () => {
-                if(ConfigManager.getKey('llama-server-cmd')){
-                    ConfigManager.deleteKey('llama-server-cmd')
+                if(ConfigManager.getKey('old-llama-server')){
+                    ConfigManager.deleteKey('old-llama-server')
                 } else {
-                    ConfigManager.setKey('llama-server-cmd',true)
+                    ConfigManager.setKey('old-llama-server',true)
                 }
                 MenuCLI.displayMenu(LlamaCPP_Menu)
             } 

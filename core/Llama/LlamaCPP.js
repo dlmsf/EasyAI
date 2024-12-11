@@ -147,10 +147,10 @@ async LlamaServer() {
         }
         
         let cpath
-        if(ConfigManager.getKey('llama-server-cmd')){
-            cpath = 'llama-server'
-            } else {
+        if(ConfigManager.getKey('old-llama-server')){
             cpath = 'server'
+            } else {
+            cpath = 'llama-server'
             }
         let has_make_build = await CheckFile(`./llama.cpp/${cpath}`)
 
@@ -158,12 +158,24 @@ async LlamaServer() {
 
         if(!has_make_build && !has_cmake_build){
         if(this.CMake_Build){
-            await this.runCmake(cpp_path)
+            if(cpath == 'llama-server'){
+                await this.runCmake(cpp_path)
+            } else {
+                //await fsPromises.rm('./build')
+                //ConfigManager.setKey('commit-swap',await Git.ActualHash(cpp_path))
+                //Git.Checkout()
+                this.runMake(cpp_path)
+            }
+            
         } else {
+            if(cpath == 'server'){
             await this.runMake(cpp_path);
+            } else {
+            await this.runCmake(cpp_path) 
+            }
         }   
        
-        }
+        } 
         this.executeMain(cpp_path);
         await Sleep(2500) // REMOVER ESSA PORCARIA DEPOIS NÃO TM QUE ESPERAR COM SLEEP COISA NENHUMA, TEM QUE TER UMA VERIFICAÇÃO CORRETA
         this.ServerOn = true; 
@@ -259,10 +271,10 @@ executeMain(cpp_path) {
             mainArgs.push(this.LoraPath)
         }
         let cpath
-        if(ConfigManager.getKey('llama-server-cmd')){
-            cpath = 'llama-server'
-            } else {
+        if(ConfigManager.getKey('old-llama-server')){
             cpath = 'server'
+            } else {
+            cpath = 'llama-server'
             }
         let has_make_build = await CheckFile(`./llama.cpp/${cpath}`)
 
