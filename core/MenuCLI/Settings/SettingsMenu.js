@@ -68,7 +68,7 @@ options : [
         name : `Start ${ColorText.cyan('w/PM2')} | ${(ConfigManager.getKey('start-pm2') ? ColorText.green('ON') : ColorText.red('OFF'))}`,
         action : () => {
             if(ConfigManager.getKey('start-pm2')){
-                ConfigManager.setKey('start-pm2',false)
+                ConfigManager.deleteKey('start-pm2')
             } else {
                 ConfigManager.setKey('start-pm2',true)
             }
@@ -79,7 +79,7 @@ options : [
     name : `Start ${ColorText.cyan('w/CUDA')} | ${(ConfigManager.getKey('start-cuda') ? ColorText.green('ON') : ColorText.red('OFF'))}`,
     action : () => {
         if(ConfigManager.getKey('start-cuda')){
-            ConfigManager.setKey('start-cuda',false)
+            ConfigManager.deleteKey('start-cuda')
         } else {
             ConfigManager.setKey('start-cuda',true)
         }
@@ -172,20 +172,17 @@ options : [
 
                             }
 
-            
                         } else {
 
                                 ConfigManager.setKey('jbuild',true)
                                 ConfigManager.setKey('jbuild-threads',1)
-                           
+                        
                         }
-
-                      
 
                     } else {
 
                         if(ConfigManager.getKey('jbuild')){
-                            ConfigManager.setKey('jbuild',false)
+                            ConfigManager.deleteKey('jbuild')
                         } else {
                             ConfigManager.setKey('jbuild',true)
                         }
@@ -196,6 +193,18 @@ options : [
                     
                 }
                 },
+                {
+                    name : `Log | ${(ConfigManager.getKey('log') ? ColorText.green('ON') : ColorText.red('OFF'))}`,
+                    action : () => {
+                        if(ConfigManager.getKey('log')){
+                            ConfigManager.deleteKey('log')
+                        } else {
+                            ConfigManager.setKey('log',true)
+                        }
+                        MenuCLI.displayMenu(SettingsMenu)
+                    }
+                    },
+                
 
     {
         name : '← Voltar',
