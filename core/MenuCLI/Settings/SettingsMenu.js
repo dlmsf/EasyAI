@@ -5,6 +5,7 @@ import ColorText from '../../useful/ColorText.js'
 import FlashMenu from "./FlashMenu.js"
 import RequirementsMenu from "../Requirements/RequirementsMenu.js"
 import { cpus } from 'os';
+import MiscMenu from "./MiscMenu.js"
 
 export class ThreadDetector {
     static getSystemThreads() {
@@ -64,6 +65,43 @@ const SettingsMenu = () => ({
     title : `✏️ Settings
 `,
 options : [
+    {   
+        //caso de uso legal para utilizar o terminalHUD com < >
+        name : `Run Mode | ${['⭐', '🚧', '⚒️', '🥵'].includes(ConfigManager.getKey('mode')) ? ConfigManager.getKey('mode') : '⚒️'}`,
+        action : () => {
+
+            let key = ConfigManager.getKey('mode')
+
+            if(key){
+                
+                switch (key) {
+                    case '🥵':
+                        ConfigManager.setKey('mode','⭐')
+                    break;
+
+                    case '⭐':
+                        ConfigManager.setKey('mode','🚧')
+                    break;
+
+                    case '🚧':
+                        ConfigManager.setKey('mode','⚒️')
+                    break;
+                
+                    case '⚒️':
+                        ConfigManager.setKey('mode','🥵')
+                    break;
+
+                    default :
+                    ConfigManager.setKey('mode','🥵')
+                    break
+                    
+                }
+            } else {
+                ConfigManager.setKey('mode','🥵')
+            }
+            MenuCLI.displayMenu(SettingsMenu)
+        }
+    },
     {
         name : `Start ${ColorText.cyan('w/PM2')} | ${(ConfigManager.getKey('start-pm2') ? ColorText.green('ON') : ColorText.red('OFF'))}`,
         action : () => {
@@ -204,6 +242,12 @@ options : [
                         MenuCLI.displayMenu(SettingsMenu)
                     }
                     },
+                    {
+                        name : ColorText.yellow('Misc'),
+                        action : () => {
+                            MenuCLI.displayMenu(MiscMenu)
+                            }
+                        },
                 
 
     {
