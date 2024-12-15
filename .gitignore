@@ -13,3 +13,5 @@ pm2
 tmp
 log.json
 logconfig.json
+templog.json
+/test*
