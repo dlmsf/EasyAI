@@ -7,6 +7,8 @@ import renameProperty from './core/useful/renameProperty.js'
 import OpenAI from './core/OpenAI.js'
 import EasyAI_WebGPT from "./core/EasyAI_WebGPT.js";
 import ChatPrompt from "./core/MenuCLI/Sandbox/ChatPrompt.js";
+import LogMaster from './core/LogMaster.js'
+import FileTool from "./core/useful/FileTool.js";
 
 class EasyAI {
     constructor(config = {openai_token : '',openai_model : undefined,server_url : '',server_port : 4000,server_token : '',llama : {jbuild : false,vulkan : false,cmake : false,server_port : undefined,git_hash : undefined,llama_model : '',cuda : false,gpu_layers : undefined,threads : undefined,lora : undefined,lorabase : undefined,context : undefined,slots : undefined,mlock : undefined,mmap : undefined}}){
@@ -17,7 +19,6 @@ class EasyAI {
         this.ServerURL = config.server_url || null
         this.ServerPORT = config.server_port || 4000
         this.ServerTOKEN = config.server_token || null
-
 
         if(!this.ServerURL && !this.OpenAI){
             this.LlamaCPP = new LlamaCPP({
@@ -38,6 +39,36 @@ class EasyAI {
                 jbuild : (config.llama) ? config.llama.jbuild : undefined
             })
         }
+        
+        // de forma geral criar id unico e ID UNICO em escala plugavel
+
+
+        //utilziar isso abaixo e criar na mesma levada do LogMaster, quem sabe dentro, uma para visualizar em escala varias instancias, HUD onde seja possivel visualizar grupos de 10mi-20mi instancias com facilidade (simulador para testar o hud antes de produçãi )
+        /*
+        this.Info = {
+            Type :  'Native',
+            Status : 'Starting',
+            Engine : ''
+        }
+        */
+
+        
+        LogMaster.Log('EasyAI Instance',{
+            ...(this.LlamaCPP && {
+                Event : 'Start',
+                Engine : 'LlamaCPP',
+                Threads : this.LlamaCPP.Threads,
+                Model : `${FileTool.fileName(this.LlamaCPP.ModelPath)} | ${FileTool.fileSize(this.LlamaCPP.ModelPath,{includeUnit : true})}`
+            }),
+            ...(this.ServerURL && {
+                ServerConnection : `${this.ServerURL}:${this.ServerPORT}`
+            }),
+            ...(this.OpenAI && {
+                OpenAI_Connection : true
+            }),
+            
+        })
+
     }
 
 async Generate(prompt = 'Once upon a time', config = {openai : false,logerror : false, stream: true, retryLimit: 420000,tokenCallback : () => {}}) {
@@ -130,6 +161,7 @@ static Sleep = async (ms) => {
 static Server = EasyAI_Server
 
 static WebGPT = EasyAI_WebGPT
+
 
 }
 
