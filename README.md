@@ -14,8 +14,3 @@
 | 🏎️| `ai groq` |`chat groq` | `generate groq` | `webgpt groq`
 | 📡| `ai openai` |`chat openai` | `generate openai` | `webgpt openai` 
 | 💾| `ai <save>` |`chat <save>` | `generate <save>` | `webgpt <save>` 
-
-
-# 
-‎
-📃 ```doc```
