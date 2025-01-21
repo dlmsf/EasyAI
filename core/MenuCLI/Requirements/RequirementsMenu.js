@@ -1,10 +1,10 @@
 import MenuCLI from "../MenuCLI.js";
 import CentosMenu from "./CentosMenu.js";
-import StartMenu from "../StartMenu.js";
 import LlamacppRepo from "./LlamacppRepo.js";
 import WindowsMenu from "./WindowsMenu.js";
 import ColorText from "../../useful/ColorText.js";
 import PM2 from "../../useful/PM2.js";
+import SettingsMenu from "../Settings/SettingsMenu.js";
 
 let hash_options = async (page = 1) => {
 let finaloptions = []
@@ -152,7 +152,7 @@ options : [
     {
         name : '← Voltar',
         action : () => {
-            MenuCLI.displayMenu(StartMenu)
+            MenuCLI.displayMenu(SettingsMenu)
             }
         }
      ]

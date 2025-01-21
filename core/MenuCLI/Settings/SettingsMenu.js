@@ -20,7 +20,7 @@ export class ThreadDetector {
 }
 
 const LlamaCPP_Menu = () => ({
-    title : `✏️ Settings / LlamaCPP Menu
+    title : `• Settings / LlamaCPP Menu
 `,
 options : [
     {
@@ -62,7 +62,7 @@ options : [
 })
 
 const SettingsMenu = () => ({
-    title : `✏️ Settings
+    title : `• Settings
 `,
 options : [
     {   
@@ -242,6 +242,12 @@ options : [
                         MenuCLI.displayMenu(SettingsMenu)
                     }
                     },
+                    {
+                        name : ColorText.orange('Requirements'),
+                        action : () => {
+                            MenuCLI.displayMenu(RequirementsMenu)
+                            }
+                        },
                     {
                         name : ColorText.yellow('Misc'),
                         action : () => {

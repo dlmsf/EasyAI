@@ -350,7 +350,7 @@ let server_menu_options = async () => {
     }
 
 const ServerMenu = async () => ({
-    title : `• EasyAI Server • ${(await PM2.Process('pm2_easyai_server').catch(e => {})) ? `| ${ColorText.green('PM2 Server Online')}` : ''}
+    title : `• EasyAI Server
 `,
 options : await server_menu_options()
 

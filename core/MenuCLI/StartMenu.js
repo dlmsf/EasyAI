@@ -6,11 +6,11 @@ import SettingsMenu from "./Settings/SettingsMenu.js";
 import PM2 from "../useful/PM2.js";
 
 const StartMenu = () => ({
-    title : `✔️ EasyAI
+    title : `    • EasyAI •
 `,
 options : [
     {
-    name : '◆ EasyAI Server',
+    name : '🌐 Server',
     action : () => {
         MenuCLI.displayMenu(ServerMenu)
     }
@@ -20,15 +20,9 @@ options : [
     action : () => {
         MenuCLI.displayMenu(SandboxConfig)
         }
-    },
-    {
-        name : '⚙️ Requirements',
-        action : async () => {
-            MenuCLI.displayMenu(RequirementsMenu)
-            }
-        },
+    }, 
         {
-            name : '✏️ Settings',
+            name : '⚙️  Settings',
             action : () => {
                 MenuCLI.displayMenu(SettingsMenu)
                 }
