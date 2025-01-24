@@ -11,6 +11,6 @@
 | 👑| `ai phi` |`chat phi` | `generate phi` | `webgpt phi` 
 | 📡| `ai openai` |`chat openai` | `generate openai` | `webgpt openai` 
 | 🦙| `ai llama` | `chat llama` | `generate llama` | `webgpt llama` 
-| 🐋| `ai deepseek` | `chat deepseek` | `generate deepseek` | `webgpt deepseek` 
 | 🏎️| `ai groq` |`chat groq` | `generate groq` | `webgpt groq`
+| 🐋| `ai deepseek` | `chat deepseek` | `generate deepseek` | `webgpt deepseek` 
 | 💾| `ai <save>` |`chat <save>` | `generate <save>` | `webgpt <save>` 
