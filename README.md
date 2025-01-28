@@ -1,4 +1,3 @@
-# EasyAI 
 🔧 ```bash install.sh```
 
 ‎🌎 ```ai```
