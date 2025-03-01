@@ -253,7 +253,7 @@ runCmake(cpp_path) {
 
 executeMain(cpp_path) {
     return new Promise(async (resolve, reject) => {
-        let mainArgs = ['-m', this.ModelPath, '-c', this.Context,'--port',this.ServerPort];
+        let mainArgs = ['-m', this.ModelPath, '-c', this.Context,'--port',this.ServerPort,'--no-webui'];
         if(this.Threads && typeof this.Threads == 'number'){
             mainArgs.push('-t')
             mainArgs.push(this.Threads)
