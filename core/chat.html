@@ -136,8 +136,8 @@
 
     <script>
         let ws;
-        let aiMessageDiv = null; // Reference to the current AI message div
-        const wsPort = '{{WS_PORT}}'; // Placeholder for WebSocket port
+        let aiMessageDiv = null;
+        const wsPort = '{{WS_PORT}}';
 
         function initializeWebSocket() {
             ws = new WebSocket('ws://localhost:' + Number(wsPort));
@@ -148,10 +148,11 @@
                 try {
                     const data = JSON.parse(event.data);
                     if (data.type === 'token') {
-                        appendMessage(data.token, 'ai'); // Append token to the same AI message
+                        appendMessage(data.token, 'ai');
                     } else if (data.type === "end-of-response") {
-                        document.getElementById('message-input').disabled = false; // Re-enable input
-                        aiMessageDiv = null; // Reset the AI message div reference
+                        document.getElementById('message-input').disabled = false;
+                        aiMessageDiv = null;
+                        document.getElementById('message-input').focus(); // Return focus to input
                     }
                 } catch (error) {
                     console.error('Error parsing message:', error);
@@ -176,9 +177,9 @@
             if (message) {
                 appendMessage(message, 'user');
                 input.value = '';
-                input.disabled = true; // Disable input during AI response
+                input.disabled = true;
                 if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(message); // Send the message with \n intact
+                    ws.send(message);
                 }
             }
         }
@@ -187,20 +188,18 @@
             const chatMessages = document.getElementById('chat-messages');
 
             if (sender === 'ai' && aiMessageDiv) {
-                // Update the same AI message div with new token and handle line breaks
                 aiMessageDiv.innerHTML += text.replace(/\n/g, '<br>');
             } else {
-                // Create a new message div for the first token or user message
                 const msgDiv = document.createElement('div');
                 msgDiv.classList.add('message', sender === 'user' ? 'user-message' : 'ai-message');
-                msgDiv.innerHTML = text.replace(/\n/g, '<br>'); // Replace line breaks
+                msgDiv.innerHTML = text.replace(/\n/g, '<br>');
                 chatMessages.appendChild(msgDiv);
                 if (sender === 'ai') {
-                    aiMessageDiv = msgDiv; // Store reference for updating AI message
+                    aiMessageDiv = msgDiv;
                 }
             }
 
-            chatMessages.scrollTop = chatMessages.scrollHeight; // Auto-scroll to the latest message
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
         function resetChat() {
