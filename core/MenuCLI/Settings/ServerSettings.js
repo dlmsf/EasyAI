@@ -18,6 +18,17 @@ options : [
             MenuCLI.displayMenu(ServerSettings)
         }
         },
+        {
+            name : `Webgpt Connection | ${(ConfigManager.getKey('webgpt-socket-connection') ? ColorText.brightYellow('Web Socket') : ColorText.green('HTTP'))}`,
+            action : () => {
+                if(ConfigManager.getKey('webgpt-socket-connection')){
+                    ConfigManager.deleteKey('webgpt-socket-connection')
+                } else {
+                    ConfigManager.setKey('webgpt-socket-connection',true)
+                }
+                MenuCLI.displayMenu(ServerSettings)
+            }
+            },
     {
         name : '← Back',
         action : () => {
