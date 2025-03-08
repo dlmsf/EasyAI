@@ -31,7 +31,7 @@ options : [
          }
     },
     {
-    name : '← Voltar',
+    name : '← Back',
     action : () => {
         MenuCLI.displayMenu(FlashMenu)
             }
@@ -66,7 +66,7 @@ options : [
          }
     },
     {
-    name : '← Voltar',
+    name : '← Back',
     action : () => {
         MenuCLI.displayMenu(FlashMenu)
             }
@@ -102,7 +102,7 @@ options : [
          }
     },
     {
-    name : '← Voltar',
+    name : '← Back',
     action : () => {
         MenuCLI.displayMenu(FlashMenu)
             }
@@ -139,7 +139,7 @@ options : [
                 }
             },
     {
-        name : '← Voltar',
+        name : '← Back',
         action : () => {
             MenuCLI.displayMenu(SettingsMenu)
             }

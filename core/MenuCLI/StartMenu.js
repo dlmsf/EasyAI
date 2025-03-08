@@ -6,8 +6,7 @@ import SettingsMenu from "./Settings/SettingsMenu.js";
 import PM2 from "../useful/PM2.js";
 
 const StartMenu = () => ({
-    title : `    • EasyAI •
-`,
+    title : ``,
 options : [
     {
     name : '🌐 Server',

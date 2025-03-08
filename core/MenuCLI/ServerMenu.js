@@ -31,7 +31,7 @@ let models_options = async () => {
             })
     })
 final_array.push({
-    name : '← Voltar',
+    name : '← Back',
     action : () => {
         MenuCLI.displayMenu(CustomServer)
         }
@@ -92,7 +92,7 @@ if(!Object.keys(config).length){
     })
 }
 final_array.push({
-    name : `← Voltar ${config.delmenu ? '- Carregar Save' : ''}`,
+    name : `← Back ${config.delmenu ? '- Carregar Save' : ''}`,
     action : async () => {
         if(!config.delmenu && !config.renmenu){MenuCLI.displayMenu(ServerMenu)} else {MenuCLI.displayMenu(SavesMenu,{props : {options : await save_options()}})}
         }
@@ -267,7 +267,7 @@ Deseja sobrescrever?`,['Sobescrever','Cancelar'])
          }
         },
     {
-        name : '← Voltar',
+        name : '← Back',
         action : () => {
             MenuCLI.displayMenu(ServerMenu)
             }
@@ -340,7 +340,7 @@ let server_menu_options = async () => {
      }
 
      opt_array.push({
-        name : '← Voltar',
+        name : '← Back',
         action : () => {
             MenuCLI.displayMenu(StartMenu)
             }

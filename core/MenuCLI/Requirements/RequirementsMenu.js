@@ -44,7 +44,7 @@ prevnext.push({
 finaloptions.push({type : 'options',value : prevnext})
 
 finaloptions.push({
-    name : '← Voltar - LlammaCPP Menu',
+    name : '← Back - LlammaCPP Menu',
     action : async () => {
         MenuCLI.displayMenu(LlamaCPPMenu,{props : {hash : await LlamacppRepo.getCurrentCommitHash(),options : await cpp_options()}})
         }
@@ -107,7 +107,7 @@ let cpp_options = async () => {
         }
     
         final_array.push({
-        name : '← Voltar',
+        name : '← Back',
         action : async () => {
             let pm2_status = await PM2.Check()
             MenuCLI.displayMenu(RequirementsMenu)
@@ -150,7 +150,7 @@ options : [
                 }
             },
     {
-        name : '← Voltar',
+        name : '← Back',
         action : () => {
             MenuCLI.displayMenu(SettingsMenu)
             }

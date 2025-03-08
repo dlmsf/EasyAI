@@ -15,7 +15,7 @@ options : [
     }
     },
     {
-        name : '← Voltar',
+        name : '← Back',
         action : async () => {
             let pm2_status = await PM2.Check()
             MenuCLI.displayMenu(RequirementsMenu,{props : {pm2_status : pm2_status}})

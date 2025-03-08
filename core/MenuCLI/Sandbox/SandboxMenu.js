@@ -77,7 +77,7 @@ options : [
             }
         },
     {
-        name : '← Voltar',
+        name : '← Back',
         action : () => {
             MenuCLI.displayMenu(StartMenu)
             }
