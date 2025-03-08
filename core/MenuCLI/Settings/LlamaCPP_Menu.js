@@ -19,8 +19,7 @@ export class ThreadDetector {
 }
 
 const LlamaCPP_Menu = () => ({
-    title : `• Settings / Text Generation / LlamaCPP Menu
-`,
+    title : `• Settings / Text Generation / LlamaCPP Menu`,
 options : [
     {
         name : `Install | ${ConfigManager.getKey('gh-llama') ? ColorText.cyan('GitHub') : ColorText.yellow('Native')}`,

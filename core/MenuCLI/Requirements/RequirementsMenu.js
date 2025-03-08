@@ -117,8 +117,7 @@ let cpp_options = async () => {
         }
 
 const RequirementsMenu = async (props) => ({
-    title : `🔍 Requirements
-`,
+    title : `🔍 Requirements`,
 options : [
     {
     name : 'Centos 7x',

@@ -108,7 +108,9 @@ class TerminalHUD {
    */
   async displayMenuFromOptions(question, options, config = { clear: true }) {
     console.clear();
-    console.log(`\n${question}\n`);
+    if (question) {
+      console.log(`${question}\n`);
+    }
     let optionIndex = 1;
     const optionMap = {};
     for (let index = 0; index < options.length; index++) {
@@ -220,6 +222,10 @@ class TerminalHUD {
   async displayMenuWithArrows(question, options = [], config = { clear: false }, initialSelectedIndex = 0) {
     return new Promise(resolve => {
       if (config.clear) console.clear();
+      if (question) {
+        console.clear();
+        console.log(`${question}\n`);
+      }
       const lines = this.normalizeOptions(options);
       let { line: selectedLine, col: selectedCol } = this.getCoordinatesFromLinearIndex(lines, initialSelectedIndex);
 
@@ -233,7 +239,9 @@ class TerminalHUD {
 
       const renderMenu = () => {
         console.clear();
-        console.log(`\n${question}\n`);
+        if (question) {
+          console.log(`${question}\n`);
+        }
         for (let i = 0; i < lines.length; i++) {
           let lineStr = '';
           for (let j = 0; j < lines[i].length; j++) {
@@ -325,7 +333,9 @@ class TerminalHUD {
     } else {
       // Traditional numbered mode:
       console.clear();
-      console.log(`\n${menuTitle}\n`);
+      if (menuTitle) {
+        console.log(`${menuTitle}\n`);
+      }
       let optionIndex = 1;
       const optionMap = {};
       for (let option of menu.options) {

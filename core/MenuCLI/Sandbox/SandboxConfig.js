@@ -9,8 +9,7 @@ let instance_config = {server_url : 'localhost',server_port : 4000}
 const SandboxConfig = () => ({
     title : `• Sandbox Config
 
-${instance_config.openai_token ? 'OpenAI': `URL : ${instance_config.server_url}${(instance_config.server_port) ? `:${instance_config.server_port}` : ''}`}
-`,
+${instance_config.openai_token ? 'OpenAI': `URL : ${instance_config.server_url}${(instance_config.server_port) ? `:${instance_config.server_port}` : ''}`}`,
 options : [
     {
         name : '✅ Conectar ✅',

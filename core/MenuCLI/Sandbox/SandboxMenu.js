@@ -11,8 +11,7 @@ import PM2 from '../../useful/PM2.js'
 
 
 const SandboxMenu = async (props) => ({
-    title : `☕ Sandbox | ${props.openai_token ? `OpenAI ${props.openai_model ? `(${ColorText.cyan(props.openai_model)})` : ''}` : `${props.server_url}${(props.server_port) ? `:${props.server_port}` : ''}`}
-`,
+    title : `☕ Sandbox | ${props.openai_token ? `OpenAI ${props.openai_model ? `(${ColorText.cyan(props.openai_model)})` : ''}` : `${props.server_url}${(props.server_port) ? `:${props.server_port}` : ''}`}`,
 options : [
     {
     name : 'Generate',

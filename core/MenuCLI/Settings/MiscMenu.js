@@ -4,11 +4,10 @@ import MenuCLI from "../MenuCLI.js";
 import ConfigManager from "../../ConfigManager.js";
 
 const MiscMenu = () => ({
-    title : `Misc
-`,
+    title : `Misc`,
 options : [
         {
-        name : '← Voltar - Settings Menu',
+        name : '← Back',
         action : () => {
             MenuCLI.displayMenu(SettingsMenu)
             }

@@ -23,8 +23,7 @@ export class ThreadDetector {
 }
 
 const SettingsMenu = () => ({
-    title : `• Settings
-`,
+    title : `• Settings`,
 options : [
     {   
         //caso de uso legal para utilizar o terminalHUD com < >

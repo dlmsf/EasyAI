@@ -5,8 +5,7 @@ import SettingsMenu from "./SettingsMenu.js"
 import LlamaCPP_Menu from "./LlamaCPP_Menu.js"
 
 const TextGeneration_Menu = () => ({
-    title : `• Settings / Text Generation
-`,
+    title : `• Settings / Text Generation`,
 options : [
     {
         name : `LlamaCPP`,

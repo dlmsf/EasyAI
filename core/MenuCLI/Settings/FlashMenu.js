@@ -5,8 +5,7 @@ import SettingsMenu from "./SettingsMenu.js"
 import ServerSaves from "../ServerSaves.js"
 
 const FlashWebGPT = () => ({
-    title : `WebGPT Command-line Configuration
-`,
+    title : `WebGPT Command-line Configuration`,
 options : [
     {
     name : `💾 Default Save ${ConfigManager.getKey('defaultwebgptsave') ? `| ${ColorText.cyan(ConfigManager.getKey('defaultwebgptsave'))}` : '' }`,
@@ -40,8 +39,7 @@ options : [
 })
 
 const FlashGenerate = () => ({
-    title : `Generate Command-line Configuration
-`,
+    title : `Generate Command-line Configuration`,
 options : [
     {
     name : `💾 Default Save ${ConfigManager.getKey('defaultgeneratesave') ? `| ${ColorText.cyan(ConfigManager.getKey('defaultgeneratesave'))}` : '' }`,
@@ -75,8 +73,7 @@ options : [
 })
 
 const FlashChat = () => ({
-    title : `Chat Command-line Configuration
-`,
+    title : `Chat Command-line Configuration`,
 options : [
     {
     name : `💾 Default Save ${ConfigManager.getKey('defaultchatsave') ? `| ${ColorText.cyan(ConfigManager.getKey('defaultchatsave'))}` : '' }`,
@@ -111,8 +108,7 @@ options : [
 })
 
 const FlashMenu = () => ({
-    title : `⚡ Flash Commands
-`,
+    title : `⚡ Flash Commands`,
 options : [
     {
     name : 'chat',

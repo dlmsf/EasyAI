@@ -5,8 +5,7 @@ import RequirementsMenu from "../Requirements/RequirementsMenu.js"
 import SettingsMenu from "./SettingsMenu.js"
 
 const ServerSettings = () => ({
-    title : `• Settings / Server Settings
-`,
+    title : `• Settings / Server Settings`,
 options : [
     {
         name : `Start ${ColorText.cyan('w/PM2')} | ${(ConfigManager.getKey('start-pm2') ? ColorText.green('ON') : ColorText.red('OFF'))}`,

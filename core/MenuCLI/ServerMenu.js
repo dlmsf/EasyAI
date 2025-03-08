@@ -101,10 +101,7 @@ return final_array
 }
 
 const CustomServer = (props) => ({
-    title : `• EasyAI Server | Configurar Server
-${(props.save_message) ? `
-${props.save_message}
-` : ''}`,
+    title : `• EasyAI Server / Configurar Server`,
 options : [
     {
     name : ColorText.yellow('⚡ Iniciar Servidor ⚡'),
@@ -350,21 +347,18 @@ let server_menu_options = async () => {
     }
 
 const ServerMenu = async () => ({
-    title : `• EasyAI Server
-`,
+    title : `• EasyAI Server`,
 options : await server_menu_options()
 
 })
 
 const SavesMenu = (props) => ({
-    title : `• Saves •
-`,
+    title : `• Saves •`,
 options : props.options
 })
 
 const ModelsMenu = (props) => ({
-    title : `• Modelos •
-`,
+    title : `• Modelos •`,
 options : props.options
 })
 
