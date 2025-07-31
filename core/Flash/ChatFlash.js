@@ -10,9 +10,11 @@ import ConfigManager from "../ConfigManager.js"
 import ColorText from '../useful/ColorText.js'
 import TerminalHUD from "../TerminalHUD.js"
 import ModelsList from '../MenuCLI/ModelsList.js'
+import FreePort from "../useful/FreePort.js"
 
 let ai
 let process_name
+let port
 
 const StartChat = (ai,process_name) => {
     const chat = new Chat()
@@ -43,7 +45,8 @@ let models_options = async () => {
             action : async () => {
               
                let model = `./models/${e.name}`
-               process_name = await EasyAI.Server.PM2({EasyAI_Config :{llama : {llama_model : model}}})
+               port = await FreePort(4000)
+               process_name = await EasyAI.Server.PM2({handle_port : false,port : port,EasyAI_Config :{llama : {llama_model : model}}})
                 
                 }
             })
@@ -88,8 +91,8 @@ if (args.length > 0 || ConfigManager.getKey('defaultchatsave')){
     } else {
         await ServerSaves.Load(toload)
         .then(async (save) => {
-    
-                process_name = await EasyAI.Server.PM2({token : save.Token,port : save.Port,EasyAI_Config : save.EasyAI_Config})
+
+                process_name = await EasyAI.Server.PM2({handle_port : false,token : save.Token,port : save.Port,EasyAI_Config : save.EasyAI_Config})
                 console.log('✔️ PM2 Server iniciado com sucesso !')
                 ai = new EasyAI({server_url : 'localhost',server_port : save.Port})
                 StartChat(ai,process_name)
@@ -100,13 +103,14 @@ if (args.length > 0 || ConfigManager.getKey('defaultchatsave')){
                 let cli = new TerminalHUD()
                 await cli.displayMenu(FastModel)
                 cli.close()
-                ai = new EasyAI({server_url : 'localhost',server_port : 4000})
+                ai = new EasyAI({server_url : 'localhost',server_port : port})
                 StartChat(ai,process_name)
 
             } else {
                 console.log(`Save ${ColorText.red(args[0])} não foi encontrado`)
-                process_name = await EasyAI.Server.PM2()
-                ai = new EasyAI({server_url : 'localhost',server_port : 4000})
+                port = await FreePort(4000)
+                process_name = await EasyAI.Server.PM2({handle_port : false,port : port})
+                ai = new EasyAI({server_url : 'localhost',server_port : port})
                 StartChat(ai,process_name)
            
             } 
@@ -114,8 +118,9 @@ if (args.length > 0 || ConfigManager.getKey('defaultchatsave')){
     }
    
 } else {
-    process_name = await EasyAI.Server.PM2()
-    ai = new EasyAI({server_url : 'localhost',server_port : 4000})
+    port = await FreePort(4000)
+    process_name = await EasyAI.Server.PM2({handle_port : false,port : port})
+    ai = new EasyAI({server_url : 'localhost',server_port : port})
     StartChat(ai,process_name)
 }
 

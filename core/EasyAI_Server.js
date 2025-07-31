@@ -7,6 +7,7 @@ import { writeFileSync, existsSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 import PM2 from './useful/PM2.js'
+import FreePort from './useful/FreePort.js';
 
 function execAsync(command) {
     return new Promise((resolve, reject) => {
@@ -21,8 +22,9 @@ function execAsync(command) {
   }
 
 class EasyAI_Server {
-    constructor(config = {port: 4000, token: '', EasyAI_Config : {}}) {
+    constructor(config = {port: 4000, token: '', EasyAI_Config : {},handle_port : true}) {
         this.port = config.port || 4000;
+        this.handle_port = config.handle_port
         this.token = config.token || undefined;
         this.AI = new EasyAI(config.EasyAI_Config);
         this.server = http.createServer((req, res) => this.handleRequest(req, res));
@@ -168,7 +170,7 @@ class EasyAI_Server {
         const randomSuffix = Math.floor(100 + Math.random() * 900); // 3-digit random number
         const uniqueFileName = `pm2_easyai_server_${timestamp}_${randomSuffix}.mjs`;
         const serverScriptPath = path.join('/tmp', uniqueFileName);
-    
+        
         const easyAIServerPath = await findEasyAIServerPath();
     
         const fileContent = `import EasyAI from '${easyAIServerPath}';
@@ -178,12 +180,14 @@ class EasyAI_Server {
     
         writeFileSync(serverScriptPath, fileContent);
         
+        /*
         if (!(await PM2.Check())) {
             console.error('PM2 not founded')
             //native instal here
             //await PM2.Install(); <- online install by config
         }
-    
+        */
+
         try {
             await execAsync(`pm2 start ${serverScriptPath}`);
             console.log("PM2 process successfully managed.");
@@ -195,7 +199,10 @@ class EasyAI_Server {
     }
     
 
-    start() {
+    async start() {
+        if(this.handle_port){
+            this.port = await FreePort(this.port)
+        }
         this.server.listen(this.port, () => {
             const primaryIP = this.getPrimaryIP();
             console.log(`EasyAI server is running on http://${primaryIP}:${this.port}`);

@@ -11,6 +11,7 @@ import LlamacppRepo from '../MenuCLI/Requirements/LlamacppRepo.js'
 import ConfigManager from '../ConfigManager.js';
 import BashrcRefresh from '../useful/BashrcRefresh.js';
 import FixBuildInfo from './FixBuildInfo.js';
+import FreePort from '../useful/FreePort.js'
 
 const Sleep = async (ms) => {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -119,6 +120,7 @@ class LlamaCPP {
 
 
 async Start(){
+    this.ServerPort = await FreePort(this.ServerPort)
     await this.initializeModelPath();
     await this.initializeLlamaCPPRepo()
     await this.LlamaServer()
