@@ -6,8 +6,57 @@ import PM2 from "../useful/PM2.js"
 import ServerSaves from "../MenuCLI/ServerSaves.js"
 import ColorText from '../useful/ColorText.js'
 import ConfigManager from "../ConfigManager.js"
+import TerminalHUD from "../TerminalHUD.js"
+import ModelsList from '../MenuCLI/ModelsList.js'
+import FreePort from "../useful/FreePort.js"
 
 let ai
+let process_name
+let port
+
+
+const StartGenerate = (ai,process_name) => {
+        console.clear()
+
+        new TerminalGenerate(async (input,display) => {
+           await ai.Generate(input,{tokenCallback : async (token) =>{await display(token.stream.content)}})
+        },{exitFunction : async () => {
+            if(process_name){
+                await PM2.Delete(process_name)
+                }
+                console.clear()
+        }})
+}
+
+let models_options = async () => {
+    let final_array = []
+    let saves_array = await ModelsList()
+    saves_array.forEach(e => {
+        final_array.push({
+            name : `${e.name} | ${e.size} GB`,
+            action : async () => {
+              
+               let model = `./models/${e.name}`
+               port = await FreePort(4000)
+               process_name = await EasyAI.Server.PM2({handle_port : false,port : port,EasyAI_Config :{llama : {llama_model : model}}})
+                
+                }
+            })
+    })
+final_array.push({
+    name : 'Exit',
+    action : () => {
+        process.exit()
+        }
+    })
+return final_array
+}
+
+const FastModel = async () => ({
+
+    options : await models_options()
+
+})
 
 const args = process.argv.slice(2);
 
@@ -17,6 +66,7 @@ if (args.length > 0 || ConfigManager.getKey('defaultgeneratesave')) {
         if(ConfigManager.getKey('openai')){
             let openai_info = ConfigManager.getKey('openai')
             ai = new EasyAI({openai_token : openai_info.token, openai_model : openai_info.model})
+            StartGenerate(ai)
         } else {
             let cli = new TerminalHUD()
             let final_object = {}
@@ -28,32 +78,37 @@ if (args.length > 0 || ConfigManager.getKey('defaultgeneratesave')) {
             console.clear()
             )
             ai = new EasyAI({openai_token : final_object.token, openai_model : final_object.model})
+            StartGenerate(ai)
         }
     } else {
     await ServerSaves.Load(toload)
     .then(async (save) => {
 
-            await EasyAI.Server.PM2({token : save.Token,port : save.Port,EasyAI_Config : save.EasyAI_Config})
+            process_name = await EasyAI.Server.PM2({handle_port : false,token : save.Token,port : save.Port,EasyAI_Config : save.EasyAI_Config})
             console.log('✔️ PM2 Server iniciado com sucesso !')
-            ai = new EasyAI({server_url : 'localhost',server_port : 4000})
+            ai = new EasyAI({server_url : 'localhost',server_port : save.Port})
+            StartGenerate(ai,process_name)
 
     }).catch(async e => {
-
-        console.log(`Save ${ColorText.red(args[0])} não foi encontrado`)
-        await EasyAI.Server.PM2()
-        ai = new EasyAI({server_url : 'localhost',server_port : 4000})
-   
+        if(args[0] == "models"){
+            let cli = new TerminalHUD()
+            await cli.displayMenu(FastModel)
+            cli.close()
+            ai = new EasyAI({server_url : 'localhost',server_port : port})
+            StartGenerate(ai,process_name)
+        } else { 
+            console.log(`Save ${ColorText.red(args[0])} não foi encontrado`)
+            port = await FreePort(4000)
+            process_name = await EasyAI.Server.PM2({handle_port : false,port : port})
+            ai = new EasyAI({server_url : 'localhost',server_port : port})
+            StartGenerate(ai,process_name)
+        }
     })
 }
 } else {
-    await EasyAI.Server.PM2()
-    ai = new EasyAI({server_url : 'localhost',server_port : 4000})
+    port = await FreePort(4000)
+    process_name = await EasyAI.Server.PM2({handle_port : false,port : port})
+    ai = new EasyAI({server_url : 'localhost',server_port : port})
+    StartGenerate(ai,process_name)
 }
 
-console.clear()
-
-        new TerminalGenerate(async (input,display) => {
-           await ai.Generate(input,{tokenCallback : async (token) =>{await display(token.stream.content)}})
-        },{exitFunction : async () => {
-            await PM2.Delete('pm2_easyai_server')
-        }})
