@@ -135,83 +135,105 @@
     </div>
 
     <script>
-        let ws;
+        let eventSource = null;
         let aiMessageDiv = null;
-        const wsPort = '{{WS_PORT}}';
-
-        function initializeWebSocket() {
-            ws = new WebSocket('ws://localhost:' + Number(wsPort));
-            ws.onopen = function() {
-                console.log('WebSocket connection established');
-            };
-            ws.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'token') {
-                        appendMessage(data.token, 'ai');
-                    } else if (data.type === "end-of-response") {
-                        document.getElementById('message-input').disabled = false;
-                        aiMessageDiv = null;
-                        document.getElementById('message-input').focus(); // Return focus to input
-                    }
-                } catch (error) {
-                    console.error('Error parsing message:', error);
-                }
-            };
-
-            ws.onerror = function(error) {
-                console.error('WebSocket Error: ' + error);
-            };
-        }
-
-        function handleInput(event) {
-            if (event.key === 'Enter' && !event.shiftKey) {
-                sendMessage();
-                event.preventDefault();
-            }
-        }
-
+        
         function sendMessage() {
-            const input = document.getElementById('message-input');
-            const message = input.value.trim();
-            if (message) {
-                appendMessage(message, 'user');
-                input.value = '';
-                input.disabled = true;
-                if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(message);
-                }
-            }
-        }
-
-        function appendMessage(text, sender) {
-            const chatMessages = document.getElementById('chat-messages');
-
-            if (sender === 'ai' && aiMessageDiv) {
-                aiMessageDiv.innerHTML += text.replace(/\n/g, '<br>');
+          const input = document.getElementById('message-input');
+          const message = input.value.trim();
+          if (!message) return;
+        
+          appendMessage(message, 'user');
+          input.value = '';
+          input.disabled = true;
+        
+          if (eventSource) eventSource.close();
+        
+          eventSource = new EventSourcePolyfill('/message', {
+            headers: { 'Content-Type': 'application/json' },
+            payload: JSON.stringify({ message }),
+            method: "POST"
+          });
+        
+          eventSource.onmessage = function (event) {
+            if (event.data === '[DONE]') {
+              input.disabled = false;
+              input.focus();
+              aiMessageDiv = null;
+              eventSource.close();
             } else {
-                const msgDiv = document.createElement('div');
-                msgDiv.classList.add('message', sender === 'user' ? 'user-message' : 'ai-message');
-                msgDiv.innerHTML = text.replace(/\n/g, '<br>');
-                chatMessages.appendChild(msgDiv);
-                if (sender === 'ai') {
-                    aiMessageDiv = msgDiv;
-                }
+              appendMessage(event.data, 'ai');
             }
-
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+          };
         }
-
+        
         function resetChat() {
-            const chatMessages = document.getElementById('chat-messages');
-            chatMessages.innerHTML = '';
-            aiMessageDiv = null;
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send('/reset');
-            }
+          fetch('/reset', { method: 'POST' });
+          document.getElementById('chat-messages').innerHTML = '';
+          aiMessageDiv = null;
         }
-
-        window.onload = initializeWebSocket;
-    </script>
+        
+        function appendMessage(text, sender) {
+          const chatMessages = document.getElementById('chat-messages');
+          if (sender === 'ai' && aiMessageDiv) {
+            aiMessageDiv.innerHTML += text.replace(/\n/g, '<br>');
+          } else {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message', sender === 'user' ? 'user-message' : 'ai-message');
+            msgDiv.innerHTML = text.replace(/\n/g, '<br>');
+            chatMessages.appendChild(msgDiv);
+            if (sender === 'ai') aiMessageDiv = msgDiv;
+          }
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function handleInput(event) {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            sendMessage();
+            event.preventDefault();
+          }
+        }
+        
+        window.onload = () => {
+          const input = document.getElementById('message-input');
+          input.addEventListener('keydown', handleInput);
+        };
+        
+        // Polyfill: EventSource with POST
+        class EventSourcePolyfill {
+          constructor(url, options) {
+            this.url = url;
+            this.eventSource = null;
+            this.onmessage = null;
+            this._init(options);
+          }
+        
+          _init({ method = "POST", headers = {}, payload }) {
+            fetch(this.url, {
+              method,
+              headers,
+              body: payload
+            }).then(async res => {
+              const reader = res.body.getReader();
+              const decoder = new TextDecoder('utf-8');
+              let buffer = '';
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const parts = buffer.split('\n\n');
+                parts.slice(0, -1).forEach(part => {
+                  const line = part.split('data: ')[1];
+                  if (this.onmessage) this.onmessage({ data: line });
+                });
+                buffer = parts[parts.length - 1];
+              }
+            });
+          }
+        
+          close() {}
+        }
+        </script>
+        
 </body>
 </html>
