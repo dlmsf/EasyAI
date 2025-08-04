@@ -8,6 +8,10 @@ import EasyAI from '../EasyAI.js';
 import ChatPrompt from './MenuCLI/Sandbox/ChatPrompt.js';
 import Chat from './ChatModule/Chat.js';
 import PM2 from './useful/PM2.js';
+import ChatView from './ChatView.js'
+import { promisify } from 'util';
+const writeFile = promisify(fs.writeFile);
+const unlink = promisify(fs.unlink);
 
 function execAsync(command) {
   return new Promise((resolve, reject) => {
@@ -32,19 +36,42 @@ class EasyAI_WebGPT {
 
     this.server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && req.url === '/') {
-        let filePath = config.htmlpath || './core/chat.html';
-        if (!fs.existsSync(path.resolve(process.cwd(), filePath))) {
-          const currentModulePath = path.dirname(fileURLToPath(import.meta.url));
-          filePath = path.join(currentModulePath, 'chat.html');
-        }
-        fs.readFile(filePath, 'utf8', (err, content) => {
-          if (err) {
-            res.writeHead(500);
-            return res.end('Server Error');
+        try {
+          // 1. Create temporary file with ChatView.Html() content
+          const tempFilePath = path.join(process.cwd(), 'temp_chat.html');
+          await writeFile(tempFilePath, ChatView.Html(), 'utf8');
+          
+          // 2. Use your existing file-serving logic
+          let filePath = config.htmlpath || './core/chat.html';
+          if (!fs.existsSync(path.resolve(process.cwd(), filePath))) {
+              const currentModulePath = path.dirname(fileURLToPath(import.meta.url));
+              filePath = path.join(currentModulePath, 'chat.html');
           }
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(content);
-        });
+          
+          // 3. Temporarily override the file path to use our temp file
+          filePath = tempFilePath;
+          
+          // 4. Read and serve the file
+          fs.readFile(filePath, 'utf8', async (err, content) => {
+              try {
+                  // 5. Delete the temp file after sending response
+                  await unlink(tempFilePath).catch(console.error);
+                  
+                  if (err) {
+                      res.writeHead(500);
+                      return res.end('Server Error');
+                  }
+                  res.writeHead(200, { 'Content-Type': 'text/html' });
+                  res.end(content);
+              } catch (cleanupError) {
+                  console.error('Cleanup error:', cleanupError);
+              }
+          });
+      } catch (setupError) {
+          console.error('Setup error:', setupError);
+          res.writeHead(500);
+          res.end('Server Error');
+      }
       } else if (req.method === 'POST' && req.url === '/message') {
         let body = '';
         req.on('data', chunk => body += chunk);

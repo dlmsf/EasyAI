@@ -1,4 +1,12 @@
-<!DOCTYPE html>
+class ChatView  {
+  
+
+
+
+
+ static Html(){
+    return String.raw`
+    <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -237,3 +245,9 @@
         
 </body>
 </html>
+    `
+  }
+
+}
+
+export default ChatView
