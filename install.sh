@@ -5,7 +5,8 @@ REPO_DIR=$(pwd)
 FOLDER_NAME=$(basename "$REPO_DIR")
 INSTALL_DIR="/usr/local/etc/$FOLDER_NAME" # Installation folder named after the current directory
 BIN_DIR="/usr/local/bin"
-DEB_DIR="$REPO_DIR/core/upack" # Directory containing .deb files
+DEB_DIR="$REPO_DIR/core/upack" # Default directory containing .deb files for desktop
+DEB_SERVER_DIR="$REPO_DIR/core/upack-server" # Directory containing .deb files for server
 PM2_TAR_GZ="$REPO_DIR/core/Hot/pm2.tar.gz" # Path to the pm2 tar.gz file
 PM2_EXTRACT_DIR="$INSTALL_DIR/core/Hot/pm2" # Directory where pm2 will be extracted
 LOG_FILE="/var/log/$FOLDER_NAME-install.log"
@@ -20,6 +21,15 @@ declare -A COMMANDS=(
   ["core/MenuCLI/MenuCLI.js"]="ai"
   ["core/Hot/pm2/bin/pm2"]="pm2" # Correct path for pm2
 )
+
+# Function to detect Ubuntu variant
+detect_ubuntu_variant() {
+  if [[ $(dpkg -l | grep ubuntu-desktop | wc -l) -gt 0 ]]; then
+    echo "desktop"
+  else
+    echo "server"
+  fi
+}
 
 # Function to log messages
 log_message() {
@@ -55,10 +65,20 @@ install_debs() {
     return
   fi
 
-  if [[ -d "$DEB_DIR" ]]; then
-    local deb_files=("$DEB_DIR"/*.deb)
+  local variant=$(detect_ubuntu_variant)
+  local deb_dir="$DEB_DIR"
+  
+  if [[ "$variant" == "server" ]]; then
+    deb_dir="$DEB_SERVER_DIR"
+    log_message "Ubuntu Server detected. Using server-specific .deb packages."
+  else
+    log_message "Ubuntu Desktop detected. Using standard .deb packages."
+  fi
+
+  if [[ -d "$deb_dir" ]]; then
+    local deb_files=("$deb_dir"/*.deb)
     if [[ ${#deb_files[@]} -gt 0 ]]; then
-      log_message "Installing .deb packages from $DEB_DIR..."
+      log_message "Installing .deb packages from $deb_dir..."
       if [[ "$LOG_MODE" == true ]]; then
         sudo dpkg -i "${deb_files[@]}" &
       else
@@ -66,10 +86,10 @@ install_debs() {
       fi
       show_progress "Installing dependencies" $!
     else
-      log_message "No .deb files found in $DEB_DIR. Skipping .deb installation."
+      log_message "No .deb files found in $deb_dir. Skipping .deb installation."
     fi
   else
-    log_message "The .deb directory ($DEB_DIR) does not exist. Skipping .deb installation."
+    log_message "The .deb directory ($deb_dir) does not exist. Skipping .deb installation."
   fi
 }
 
@@ -190,7 +210,6 @@ for src in "${!COMMANDS[@]}"; do
   [[ -L "$dest_path" ]] && rm "$dest_path"
   ln -s "$src_path" "$dest_path"
   chmod 755 "$src_path"
-
 done
 
 log_message "Setup complete. You can now use the commands globally."
