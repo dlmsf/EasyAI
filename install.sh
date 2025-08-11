@@ -22,6 +22,48 @@ declare -A COMMANDS=(
   ["core/Hot/pm2/bin/pm2"]="pm2" # Correct path for pm2
 )
 
+show_help() {
+  # Define color codes
+  local RED='\e[31m'
+  local GREEN='\e[32m'
+  local YELLOW='\e[33m'
+  local BLUE='\e[34m'
+  local BOLD='\e[1m'
+  local RESET='\e[0m'
+
+  echo -e "${BLUE}${BOLD}${FOLDER_NAME} Installation Script${RESET}\n"
+
+  echo -e "${YELLOW}${BOLD}DESCRIPTION:${RESET}"
+  echo -e "  This script installs the ${FOLDER_NAME} package and its dependencies."
+  echo -e "  It handles both Ubuntu Desktop and Server variants, installs required .deb packages,"
+  echo -e "  sets up symbolic links for commands, and provides installation logging.\n"
+
+  echo -e "${YELLOW}${BOLD}USAGE:${RESET}"
+  echo -e "  $0 [OPTIONS]\n"
+
+  echo -e "${YELLOW}${BOLD}OPTIONS:${RESET}"
+  echo -e "  ${GREEN}-h, --help${RESET}       Show this help message and exit"
+  echo -e "  ${RED}-log${RESET}             Enable installation logging to ${LOG_FILE}"
+  echo -e "  ${RED}--skip-debs${RESET}      Skip installation of .deb packages (${YELLOW}warning:${RESET} may affect functionality)\n"
+
+  echo -e "${YELLOW}${BOLD}COMMANDS CREATED:${RESET}"
+  echo -e "  webgpt           WebGPT interface"
+  echo -e "  generate         Content generation tool"
+  echo -e "  chat             Chat interface"
+  echo -e "  ai               Main AI command menu"
+  echo -e "  pm2              Process manager for Node.js\n"
+
+  echo -e "${YELLOW}${BOLD}EXAMPLES:${RESET}"
+  echo -e "  Normal installation:        $0"
+  echo -e "  Installation with logging:  $0 ${RED}-log${RESET}"
+  echo -e "  Skip .deb installation:     $0 ${RED}--skip-debs${RESET}\n"
+
+  echo -e "${YELLOW}${BOLD}NOTE:${RESET}"
+  echo -e "  If you modify this script or add new parameters, please update this help section."
+  echo -e "  For AI-assisted rewrites, ensure documentation remains complete and accurate."
+  exit 0
+}
+
 # Function to detect Ubuntu variant
 detect_ubuntu_variant() {
   if [[ $(dpkg -l | grep ubuntu-desktop | wc -l) -gt 0 ]]; then
@@ -125,7 +167,16 @@ remove_links() {
 # Trap to handle Ctrl+C
 trap 'log_message "Installation interrupted. Running dpkg --configure -a..."; sudo dpkg --configure -a; exit 1' INT
 
-# Check for arguments
+# Check for help arguments first
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      show_help
+      ;;
+  esac
+done
+
+# Check for other arguments
 for arg in "$@"; do
   case "$arg" in
     -log)
