@@ -14,4 +14,5 @@ tmp
 log.json
 logconfig.json
 templog.json
+data
 /test*
