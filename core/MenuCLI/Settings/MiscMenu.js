@@ -62,7 +62,7 @@ old_array.forEach(e => {models_array.push(e)})
 
 if(refresh || external_count == 0){
     
-    ModelSearch.GGUF({fastMode : true,excludePaths : [`${process.env.PWD}/models`]}).forEach(e => {
+    ModelSearch.GGUF({fastMode : false,excludePaths : [`${process.env.PWD}/models`]}).forEach(e => {
         models_array.push({type : 'external',...e})
     })
 }
