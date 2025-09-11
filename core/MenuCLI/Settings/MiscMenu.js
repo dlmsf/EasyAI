@@ -7,17 +7,18 @@ import getFileInstance from "../../util/File.js";
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 
-
+// system level
+// --------------------------------------------------
 const modelsDir = `${process.env.PWD}/models`;
 
 if (!existsSync(modelsDir)) {
   await mkdir(modelsDir, { recursive: true });
 }
+// --------------------------------------------------
 
 
 
-
-
+// process level
 // --------------------------------------------------
 let models_array = [{type : '',model : '',size : 0,path : ''}]
 models_array.splice(0,1)
@@ -166,11 +167,18 @@ options : [
             }
         },
         {
-            name : `${ColorText.red('EasyAI Reinstall')}`,
+            name : `${ColorText.orange('EasyAI Reinstall')}`,
             action : () => {
                 MenuCLI.displayMenu(SettingsMenu)
                 }
-            },
+        },
+        {
+                name : `${ColorText.brightRed('Exit HUD')}`,
+                action : () => {
+                    console.clear()
+                    process.exit()
+         }
+                },
         {
         name : '← Back',
         action : () => {
