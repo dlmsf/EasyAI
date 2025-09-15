@@ -36,8 +36,6 @@ class EasyAI_WebGPT {
 
     this.server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && req.url === '/') { 
-        //console.log(path.dirname(fileURLToPath(import.meta.url))) #output  /usr/local/etc/EasyAI/core , use to alling the global /models and global /llamacpp (by default need mantain after one reeinstall)
-
         try {
           // 1. Create temporary file with ChatView.Html() content
           const tempFilePath = path.join(process.cwd(), 'temp_chat.html');
@@ -78,29 +76,43 @@ class EasyAI_WebGPT {
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
-          const { message } = JSON.parse(body);
-          this.Chat.NewMessage('User: ', message);
-          let historical_prompt = '';
-          this.Chat.Historical.forEach(e => {
-            historical_prompt += `${e.Sender}${e.Content} | `;
-          });
+          try {
+            const { message } = JSON.parse(body);
+            this.Chat.NewMessage('User: ', message);
+            let historical_prompt = '';
+            this.Chat.Historical.forEach(e => {
+              historical_prompt += `${e.Sender}${e.Content} | `;
+            });
 
-          res.writeHead(200, {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive'
-          });
+            res.writeHead(200, {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Headers': 'Cache-Control'
+            });
 
-          const result = await this.AI.Generate(`${ChatPrompt}${historical_prompt}AI:`, {
-            tokenCallback: async (token) => {
-              res.write(`data: ${token.stream.content}\n\n`);
-            },
-            stop: ['|']
-          });
+            const result = await this.AI.Generate(`${ChatPrompt}${historical_prompt}AI:`, {
+              tokenCallback: async (token) => {
+                try {
+                  // Replace newlines with a special marker for client-side processing
+                  const processedToken = token.stream.content.replace(/\n/g, '\\n');
+                  res.write(`data: ${JSON.stringify({content: processedToken})}\n\n`);
+                } catch (error) {
+                  console.error('Error writing token:', error);
+                }
+              },
+              stop: ['|']
+            });
 
-          this.Chat.NewMessage('AI: ', result.full_text);
-          res.write('data: [DONE]\n\n');
-          res.end();
+            this.Chat.NewMessage('AI: ', result.full_text);
+            res.write('data: [DONE]\n\n');
+            res.end();
+          } catch (error) {
+            console.error('Error processing message:', error);
+            res.writeHead(500);
+            res.end(JSON.stringify({error: 'Internal server error'}));
+          }
         });
       } else if (req.method === 'POST' && req.url === '/reset') {
         this.Chat.Reset();

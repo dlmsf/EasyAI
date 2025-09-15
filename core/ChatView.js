@@ -1,10 +1,5 @@
 class ChatView  {
-  
-
-
-
-
- static Html(){
+  static Html(){
     return String.raw`
     <!DOCTYPE html>
 <html lang="en">
@@ -95,6 +90,7 @@ class ChatView  {
             margin: 10px 0;
             border-radius: 10px;
             background: #e7e7e7;
+            white-space: pre-wrap; /* This preserves line breaks */
         }
         .user-message {
             background: #0078d7;
@@ -145,34 +141,83 @@ class ChatView  {
     <script>
         let eventSource = null;
         let aiMessageDiv = null;
+        let isGenerating = false;
         
         function sendMessage() {
+          if (isGenerating) return;
+          
           const input = document.getElementById('message-input');
           const message = input.value.trim();
           if (!message) return;
-        
+          
           appendMessage(message, 'user');
           input.value = '';
           input.disabled = true;
-        
-          if (eventSource) eventSource.close();
-        
-          eventSource = new EventSourcePolyfill('/message', {
-            headers: { 'Content-Type': 'application/json' },
-            payload: JSON.stringify({ message }),
-            method: "POST"
-          });
-        
-          eventSource.onmessage = function (event) {
-            if (event.data === '[DONE]') {
-              input.disabled = false;
-              input.focus();
-              aiMessageDiv = null;
-              eventSource.close();
-            } else {
-              appendMessage(event.data, 'ai');
+          isGenerating = true;
+          
+          if (eventSource) {
+            eventSource.close();
+          }
+          
+          fetch('/message', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ message })
+          })
+          .then(response => {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            function processStream({ done, value }) {
+              if (done) {
+                isGenerating = false;
+                input.disabled = false;
+                input.focus();
+                aiMessageDiv = null;
+                return;
+              }
+              
+              const chunk = decoder.decode(value, { stream: true });
+              const lines = chunk.split('\n\n');
+              
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.substring(6);
+                  
+                  if (data === '[DONE]') {
+                    isGenerating = false;
+                    input.disabled = false;
+                    input.focus();
+                    aiMessageDiv = null;
+                    return;
+                  }
+                  
+                  try {
+                    const parsed = JSON.parse(data);
+                    if (parsed.content) {
+                      // Convert escaped newlines back to actual newlines
+                      const contentWithLineBreaks = parsed.content.replace(/\\n/g, '\n');
+                      appendMessage(contentWithLineBreaks, 'ai');
+                    }
+                  } catch (e) {
+                    console.error('Error parsing JSON:', e, 'Data:', data);
+                  }
+                }
+              }
+              
+              return reader.read().then(processStream);
             }
-          };
+            
+            return reader.read().then(processStream);
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            isGenerating = false;
+            input.disabled = false;
+            input.focus();
+          });
         }
         
         function resetChat() {
@@ -183,71 +228,45 @@ class ChatView  {
         
         function appendMessage(text, sender) {
           const chatMessages = document.getElementById('chat-messages');
-          if (sender === 'ai' && aiMessageDiv) {
-            aiMessageDiv.innerHTML += text.replace(/\n/g, '<br>');
+          if (sender === 'ai') {
+            if (aiMessageDiv) {
+              // Append to existing AI message
+              aiMessageDiv.textContent += text;
+            } else {
+              // Create new AI message
+              aiMessageDiv = document.createElement('div');
+              aiMessageDiv.classList.add('message', 'ai-message');
+              aiMessageDiv.textContent = text;
+              chatMessages.appendChild(aiMessageDiv);
+            }
           } else {
+            // Create user message
             const msgDiv = document.createElement('div');
-            msgDiv.classList.add('message', sender === 'user' ? 'user-message' : 'ai-message');
-            msgDiv.innerHTML = text.replace(/\n/g, '<br>');
+            msgDiv.classList.add('message', 'user-message');
+            msgDiv.textContent = text;
             chatMessages.appendChild(msgDiv);
-            if (sender === 'ai') aiMessageDiv = msgDiv;
           }
           chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
         function handleInput(event) {
           if (event.key === 'Enter' && !event.shiftKey) {
-            sendMessage();
             event.preventDefault();
+            sendMessage();
           }
         }
         
         window.onload = () => {
           const input = document.getElementById('message-input');
           input.addEventListener('keydown', handleInput);
+          input.focus();
         };
-        
-        // Polyfill: EventSource with POST
-        class EventSourcePolyfill {
-          constructor(url, options) {
-            this.url = url;
-            this.eventSource = null;
-            this.onmessage = null;
-            this._init(options);
-          }
-        
-          _init({ method = "POST", headers = {}, payload }) {
-            fetch(this.url, {
-              method,
-              headers,
-              body: payload
-            }).then(async res => {
-              const reader = res.body.getReader();
-              const decoder = new TextDecoder('utf-8');
-              let buffer = '';
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                const parts = buffer.split('\n\n');
-                parts.slice(0, -1).forEach(part => {
-                  const line = part.split('data: ')[1];
-                  if (this.onmessage) this.onmessage({ data: line });
-                });
-                buffer = parts[parts.length - 1];
-              }
-            });
-          }
-        
-          close() {}
-        }
         </script>
         
 </body>
 </html>
-    `
+    `;
   }
-
 }
 
-export default ChatView
+export default ChatView;
