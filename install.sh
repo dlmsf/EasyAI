@@ -2,15 +2,14 @@
 
 # Configuration
 REPO_DIR=$(pwd)
-FOLDER_NAME=$(basename "$REPO_DIR")
-INSTALL_DIR="/usr/local/etc/$FOLDER_NAME" # Installation folder named after the current directory
-BACKUP_DIR="/usr/local/etc/${FOLDER_NAME}_old_$(date +%s)" # Backup of previous installation
+INSTALL_DIR="/usr/local/etc/EasyAI" # Fixed installation directory name
+BACKUP_DIR="/usr/local/etc/EasyAI_old_$(date +%s)" # Backup of previous installation
 BIN_DIR="/usr/local/bin"
 DEB_DIR="$REPO_DIR/core/upack" # Default directory containing .deb files for desktop
 DEB_SERVER_DIR="$REPO_DIR/core/upack-server" # Directory containing .deb files for server
 PM2_TAR_GZ="$REPO_DIR/core/Hot/pm2.tar.gz" # Path to the pm2 tar.gz file
 PM2_EXTRACT_DIR="$INSTALL_DIR/core/Hot/pm2" # Directory where pm2 will be extracted
-LOG_FILE="/var/log/$FOLDER_NAME-install.log"
+LOG_FILE="/var/log/EasyAI-install.log"
 LOG_MODE=false
 SKIP_DEBS=false
 LOCAL_DIR_MODE=false # Default to installation directory behavior
@@ -105,10 +104,10 @@ show_help() {
   local BOLD='\e[1m'
   local RESET='\e[0m'
 
-  echo -e "${BLUE}${BOLD}${FOLDER_NAME} Installation Script${RESET}\n"
+  echo -e "${BLUE}${BOLD}EasyAI Installation Script${RESET}\n"
 
   echo -e "${YELLOW}${BOLD}DESCRIPTION:${RESET}"
-  echo -e "  This script installs the ${FOLDER_NAME} package and its dependencies."
+  echo -e "  This script installs the EasyAI package and its dependencies."
   echo -e "  It handles both Ubuntu Desktop and Server variants, installs required .deb packages,"
   echo -e "  sets up symbolic links for commands, and provides installation logging.\n"
 
@@ -396,7 +395,7 @@ fi
 
 # Check if the installation directory already exists
 if [[ -d "$INSTALL_DIR" ]]; then
-  log_message "The folder '$FOLDER_NAME' already exists. Choose an option:"
+  log_message "The EasyAI folder already exists. Choose an option:"
   log_message "1. Update (replace existing files)"
   log_message "2. Remove (delete the existing folder and symbolic links)"
   log_message "3. Exit (cancel setup)"
