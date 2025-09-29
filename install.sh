@@ -280,9 +280,9 @@ install_apks() {
     if [ -n "$apk_files" ]; then
       log_message "Installing .apk packages from $APK_DIR..."
       if [ "$LOG_MODE" = true ]; then
-        sudo apk add --allow-untrusted $apk_files &
+        apk add --allow-untrusted $apk_files &
       else
-        sudo apk add --allow-untrusted $apk_files > /dev/null 2>&1 &
+        apk add --allow-untrusted $apk_files > /dev/null 2>&1 &
       fi
       show_progress "Installing dependencies" $!
     else
