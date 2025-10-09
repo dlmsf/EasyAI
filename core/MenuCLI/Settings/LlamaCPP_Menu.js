@@ -22,7 +22,7 @@ const LlamaCPP_Menu = () => ({
     title : `• Settings / Text Generation / LlamaCPP Menu`,
 options : [
     {
-        name : `Install | ${ConfigManager.getKey('gh-llama') ? ColorText.cyan('GitHub') : ColorText.yellow('Native')}`,
+        name : `Install | ${ConfigManager.getKey('gh-llama') ? ColorText.brightYellow('GitHub') : ColorText.green('Native')}`,
         action : () => {
             if(ConfigManager.getKey('gh-llama')){
                 ConfigManager.deleteKey('gh-llama')

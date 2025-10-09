@@ -163,13 +163,13 @@ options : [
         {
         name : 'Data Manager',
         action : () => {
-            MenuCLI.displayMenu(SettingsMenu)
+            MenuCLI.displayMenu(MiscMenu)
             }
         },
         {
-            name : `${ColorText.orange('EasyAI Reinstall')}`,
+            name : `${ColorText.red('Uninstall')}`,
             action : () => {
-                MenuCLI.displayMenu(SettingsMenu)
+                MenuCLI.displayMenu(MiscMenu)
                 }
         },
         {
