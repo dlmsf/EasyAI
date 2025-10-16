@@ -117,7 +117,7 @@ let cpp_options = async () => {
         }
 
 const RequirementsMenu = async (props) => ({
-    title : `🔍 Requirements`,
+    title : `• Settings / Requirements`,
 options : [
     {
         name : 'LlamaCPP',
@@ -147,7 +147,7 @@ options : [
 })
 
 const LlamaCPPMenu = (props) => ({
-    title : `🔍 Requirements | LlamaCPP ${(props.hash) ? `- ${props.hash}` : ''} 
+    title : `• Settings / Requirements / LlamaCPP ${(props.hash) ? `- ${props.hash}` : ''} 
 `,
 options : props.options
 

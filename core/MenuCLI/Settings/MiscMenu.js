@@ -157,7 +157,7 @@ return final_array
 const ModelsManagerMenu = async (props) => {
 
     let obj_final = {
-    title : '',
+    title : '• Settings / Misc / Models Manager',
     options : await options_array(props)
     }
 
@@ -168,7 +168,7 @@ const ModelsManagerMenu = async (props) => {
 
 
 const MiscMenu =  async () => ({
-    title : `Misc`,
+    title : `• Settings / Misc`,
 options : [
     {
         name : 'Models Manager',

@@ -2,7 +2,6 @@ import ConfigManager from "../../ConfigManager.js"
 import ColorText from '../../useful/ColorText.js'
 import MenuCLI from "../MenuCLI.js"
 import RequirementsMenu from "../Requirements/RequirementsMenu.js"
-import SettingsMenu from "./SettingsMenu.js"
 import TextGeneration_Menu from "./TextGeneration_Menu.js"
 import { cpus } from 'os';
 
@@ -19,7 +18,7 @@ export class ThreadDetector {
 }
 
 const LlamaCPP_Menu = () => ({
-    title : `• Settings / Text Generation / LlamaCPP Menu`,
+    title : `• Settings / TextGeneration / LlamaCPP Menu`,
 options : [
     {
         name : `Install | ${ConfigManager.getKey('gh-llama') ? ColorText.brightYellow('GitHub') : ColorText.green('Native')}`,
