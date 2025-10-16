@@ -223,22 +223,6 @@ options : [
             }
     },
     {
-        name : `Build | ${easyai_config.llama ? (easyai_config.llama.cmake ? ColorText.yellow('cmake') : ColorText.cyan('make')) : ColorText.cyan('make')}`,
-        action : () => {
-            if(easyai_config.llama){
-                if(easyai_config.llama.cmake){
-                    delete easyai_config.llama.cmake
-                } else {
-                    easyai_config.llama.cmake = true
-                }
-            } else {
-                easyai_config.llama = {}
-                easyai_config.llama.cmake = true
-            }
-                    MenuCLI.displayMenu(CustomServer)
-                }
-    },
-    {
         name : `Select Model ${easyai_config.llama ? (easyai_config.llama.llama_model ?  `| ${easyai_config.llama.llama_model}` : '') : ''}`,
         action : async  () => {
             MenuCLI.displayMenu(ModelsMenu,{props : {options : await models_options()}})
@@ -362,3 +346,24 @@ options : props.options
 })
 
 export default ServerMenu
+
+
+/*
+{
+        name : `Build | ${easyai_config.llama ? (easyai_config.llama.cmake ? ColorText.yellow('cmake') : ColorText.cyan('make')) : ColorText.cyan('make')}`,
+        action : () => {
+            if(easyai_config.llama){
+                if(easyai_config.llama.cmake){
+                    delete easyai_config.llama.cmake
+                } else {
+                    easyai_config.llama.cmake = true
+                }
+            } else {
+                easyai_config.llama = {}
+                easyai_config.llama.cmake = true
+            }
+                    MenuCLI.displayMenu(CustomServer)
+                }
+    },
+
+    */
