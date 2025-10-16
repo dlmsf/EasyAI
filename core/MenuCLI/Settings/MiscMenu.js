@@ -94,7 +94,8 @@ models_array.forEach((e,i) => {
         
 
         if(expanded == i){
-         final_array.push([{name : (e.type == 'external') ? ColorText.green('Internal Save') : ColorText.red('Remove') ,action : async () => {
+
+        let exp_array = [{name : (e.type == 'external') ? ColorText.green('Internal Save') : ColorText.red('Remove') ,action : async () => {
             
             if(e.type == 'external'){
                 let file = getFileInstance(e.path)
@@ -106,8 +107,23 @@ models_array.forEach((e,i) => {
                 MenuCLI.displayMenu(ModelsManagerMenu,{props : {expanded : -1}})
             }
             
+         }}]
+
+         if(e.type == 'external'){
+            exp_array.push({
+                name : ColorText.red('Remove'),
+                action : async () => {
+                let file = getFileInstance(e.path)
+                await file.delete()
+                models_array.splice(i,1)
+                MenuCLI.displayMenu(ModelsManagerMenu,{props : {expanded : -1}})
+                }
+            })
+         }
+
+         
         
-         }}])
+         final_array.push(exp_array)
         }
     }
    
