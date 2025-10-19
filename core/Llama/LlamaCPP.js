@@ -17,6 +17,61 @@ const Sleep = async (ms) => {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function healthCheckRequest(port = 8080) {
+    const url = new URL(`http://127.0.0.1:${port}/health`);
+
+    const options = {
+        method: 'GET',
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname,
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    };
+
+    return new Promise((resolve, reject) => {
+        const req = http.request(options, (res) => {
+            let data = '';
+
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+
+            res.on('end', () => {
+                try {
+                    const response = JSON.parse(data);
+                    
+                    if (res.statusCode === 200) {
+                        resolve({
+                            status: 'ready',
+                            statusCode: res.statusCode,
+                            data: response
+                        });
+                    } else if (res.statusCode === 503) {
+                        resolve({
+                            status: 'loading',
+                            statusCode: res.statusCode,
+                            data: response
+                        });
+                    } else {
+                        reject(new Error(`Unexpected status code ${res.statusCode}: ${data}`));
+                    }
+                } catch (error) {
+                    reject(new Error("Failed to parse response as JSON: " + data));
+                }
+            });
+        });
+
+        req.on('error', (error) => {
+            console.error("Error in healthCheckRequest()", error);
+            reject(error);
+        });
+
+        req.end();
+    });
+}
+
 async function CompletionPostRequest(bodyObject,config,streamCallback,port = 8080) {
     const url = new URL(`http://127.0.0.1:${port}/completion`);
 
@@ -120,7 +175,6 @@ class LlamaCPP {
 
 
 async Start(){
-    this.ServerPort = await FreePort(this.ServerPort)
     await this.initializeModelPath();
     await this.initializeLlamaCPPRepo()
     await this.LlamaServer()
@@ -181,9 +235,8 @@ async LlamaServer() {
         }   
        
         } 
-        this.executeMain(cpp_path);
-        await Sleep(2500) // REMOVER ESSA PORCARIA DEPOIS NÃO TM QUE ESPERAR COM SLEEP COISA NENHUMA, TEM QUE TER UMA VERIFICAÇÃO CORRETA
-        this.ServerOn = true; 
+        this.ServerPort = await FreePort(this.ServerPort)
+        await this.executeMain(cpp_path);
     } catch (error) {
         console.error('An error occurred:', error);
     }
@@ -303,7 +356,7 @@ executeMain(cpp_path) {
         }
 
         let executeMain = spawn(path, mainArgs, { cwd: cpp_path, stdio: 'inherit' });
-
+        
         executeMain.on('exit', (code) => {
             if (code !== 0) {
                 reject(new Error(`./main process exited with code ${code}`));
@@ -315,6 +368,16 @@ executeMain(cpp_path) {
         executeMain.on('error', (err) => {
             reject(new Error('Error executing ./main:', err));
         });
+
+        setInterval(async () => {
+            if(!this.ServerOn){
+           let result = await healthCheckRequest(this.ServerPort)
+           if(result.status == 'ready'){
+            this.ServerOn = true
+            resolve()
+           }
+        }
+        },1000)
     });
 }
 
