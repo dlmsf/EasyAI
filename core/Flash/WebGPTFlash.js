@@ -8,22 +8,25 @@ import ColorText from '../useful/ColorText.js'
 import ConfigManager from "../ConfigManager.js"
 
 
-if(await PM2.Process('pm2_webgpt')){
+if(ConfigManager.getKey('flash_webgpt_aiprocess') || ConfigManager.getKey('flash_webgpt_process')){
     let cli = new TerminalHUD()
 
     let menu = () => ({
         title : 'Flash WebGPT',
         options : [
             {
-            name : '❌ Finalizar WebGPT',
+            name : '❌ Close Webgpt',
             action : async () =>{
                 console.clear()
-                await PM2.Delete('pm2_webgpt pm2_easyai_server')
+                await PM2.Delete(ConfigManager.getKey('flash_webgpt_process')).catch(e => {})
+                await PM2.Delete(ConfigManager.getKey('flash_webgpt_aiprocess')).catch(e => {})
+                console.clear()
+                console.log('Done.')
                 process.exit()
             }
             },
             {
-            name : 'Sair',
+            name : 'Exit',
             action : () => {
                 console.clear()
                 process.exit()
@@ -45,6 +48,7 @@ if (args.length > 0 || ConfigManager.getKey('defaultwebgptsave')) {
         if(ConfigManager.getKey('openai')){
             let openai_info = ConfigManager.getKey('openai')
             await EasyAI.WebGPT.PM2({openai_token : openai_info.token, openai_model : openai_info.model})
+            .then(name => {ConfigManager.setKey('flash_webgpt_process',name)})
         } else {
             let cli = new TerminalHUD()
             let final_object = {}
@@ -56,26 +60,34 @@ if (args.length > 0 || ConfigManager.getKey('defaultwebgptsave')) {
             console.clear()
             )
             await EasyAI.WebGPT.PM2({openai_token : final_object.token, openai_model : final_object.model})
+            .then(name => {ConfigManager.setKey('flash_webgpt_process',name)})
         }
     } else {
     await ServerSaves.Load(toload)
     .then(async (save) => {
 
             await EasyAI.Server.PM2({token : save.Token,port : save.Port,EasyAI_Config : save.EasyAI_Config})
+            .then(name => {ConfigManager.setKey('flash_webgpt_aiprocess',name)})
+            
             console.log('✔️ PM2 Server iniciado com sucesso !')
             await EasyAI.WebGPT.PM2({port : save.Webgpt_Port,easyai_port : save.Port})
+            .then(name => {ConfigManager.setKey('flash_webgpt_process',name)})
 
     }).catch(async e => {
 
         console.log(`Save ${ColorText.red(args[0])} não foi encontrado`)
         await EasyAI.Server.PM2()
+        .then(name => {ConfigManager.setKey('flash_webgpt_aiprocess',name)})
         await EasyAI.WebGPT.PM2()
+        .then(name => {ConfigManager.setKey('flash_webgpt_process',name)})
    
     })
 }
 } else {
     await EasyAI.Server.PM2()
+    .then(name => {ConfigManager.setKey('flash_webgpt_aiprocess',name)})
     await EasyAI.WebGPT.PM2()
+    .then(name => {ConfigManager.setKey('flash_webgpt_process',name)})
     process.exit()
 }
 
