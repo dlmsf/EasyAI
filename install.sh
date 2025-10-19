@@ -29,6 +29,7 @@ core/apk
 build
 llama.cpp
 test.js
+test.sh
 config.json
 saves.json
 offmodels
