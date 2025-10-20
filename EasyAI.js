@@ -83,10 +83,40 @@ class EasyAI {
             Log : setInterval(() => {
                 LogMaster.Log('LlamaCPP_Instances',this.LlamaCPP_Instances)
             },1000),
+
             GetInstance_Queue : [],
 
-            GetInstance : () => {
+            GetInstance_QueueProcessor : setInterval(() => {
+
+            },50),
+
+            GetInstance : async () => {
+                let code = generateUniqueCode({length : 10,existingObjects : this.LlamaCPP.GetInstance_Queue,codeProperty : 'id'})
+                this.LlamaCPP.GetInstance_Queue.push({
+                    id : code,
+                    index : -1
+                })
+
+                async function waitUntilReady(code) {
+                    return new Promise((resolve) => {
+                        function check() {
+                            const instance = this.LlamaCPP.GetInstance_Queue.find(e => e.id == code);
+                            if (instance && instance.index >= 0) {
+                                resolve(instance);
+                            } else {
+                                setTimeout(check, 10);
+                            }
+                        }
+                        check();
+                    });
+                }
                 
+                await waitUntilReady(code)
+                
+                let index = this.LlamaCPP.GetInstance_Queue[this.LlamaCPP.GetInstance_Queue.findIndex(e => e.id == code)].index
+                this.LlamaCPP.GetInstance_Queue.splice(this.LlamaCPP.GetInstance_Queue.findIndex(e => e.id == code),1)
+                return index
+
             }
         }
 
@@ -96,8 +126,7 @@ class EasyAI {
             
         }
 
-        
-        this.Executions = []
+       
         
         // de forma geral criar id unico e ID UNICO em escala plugavel
 
