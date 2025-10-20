@@ -47,45 +47,50 @@ class EasyAI {
         this.ServerPORT = config.server_port || 4000
         this.ServerTOKEN = config.server_token || null
 
-        this.LlamaCPP_Instances = []
+        this.LlamaCPP = {
+            Instances : [],
+            NewInstance : () => {
+                this.LlamaCPP.Instances.push(new LlamaCPP({
+                    server_port : (this.Config.llama) ? this.Config.llama.server_port : undefined,
+                    git_hash : (this.Config.llama) ? this.Config.llama.git_hash : undefined,
+                    modelpath : (this.Config.llama) ? this.Config.llama.llama_model : undefined,
+                    cuda : (this.Config.llama) ? this.Config.llama.cuda : undefined,
+                    gpu_layers : (this.Config.llama) ? this.Config.llama.gpu_layers : undefined,
+                    threads : (this.Config.llama) ? this.Config.llama.threads : undefined,
+                    lora : (this.Config.llama) ? this.Config.llama.lora : undefined,
+                    lorabase : (this.Config.llama) ? this.Config.llama.lorabase : undefined,
+                    context : (this.Config.llama) ? this.Config.llama.context : undefined,
+                    slots : (this.Config.llama) ? this.Config.llama.slots : undefined,
+                    mlock : (this.Config.llama) ? this.Config.llama.mlock : undefined,
+                    mmap : (this.Config.llama) ? this.Config.llama.mmap : undefined,
+                    cmake : (this.Config.llama) ? this.Config.llama.cmake : undefined,
+                    vulkan : (this.Config.llama) ? this.Config.llama.vulkan : undefined,
+                    jbuild : (this.Config.llama) ? this.Config.llama.jbuild : undefined
+                }))
+            },
+            RestartAll : () => {
+
+            },
+            Cleaner : setInterval(() => {
+                this.LlamaCPP_Instances.forEach((e,i) => {
+                    if(((Date.now()-e.LastAction) > this.Config.SleepTolerance) && i != 0){
+                        this.LlamaCPP_Instances.splice(i,1)
+                    }
+                })
+            },10000),
+
+            Log : setInterval(() => {
+                LogMaster.Log('LlamaCPP_Instances',this.LlamaCPP_Instances)
+            },1000)
+        }
+
 
         if(!this.ServerURL && !this.OpenAI){
-            this.LlamaCPP_Instances.push(new LlamaCPP({
-                server_port : (this.Config.llama) ? this.Config.llama.server_port : undefined,
-                git_hash : (this.Config.llama) ? this.Config.llama.git_hash : undefined,
-                modelpath : (this.Config.llama) ? this.Config.llama.llama_model : undefined,
-                cuda : (this.Config.llama) ? this.Config.llama.cuda : undefined,
-                gpu_layers : (this.Config.llama) ? this.Config.llama.gpu_layers : undefined,
-                threads : (this.Config.llama) ? this.Config.llama.threads : undefined,
-                lora : (this.Config.llama) ? this.Config.llama.lora : undefined,
-                lorabase : (this.Config.llama) ? this.Config.llama.lorabase : undefined,
-                context : (this.Config.llama) ? this.Config.llama.context : undefined,
-                slots : (this.Config.llama) ? this.Config.llama.slots : undefined,
-                mlock : (this.Config.llama) ? this.Config.llama.mlock : undefined,
-                mmap : (this.Config.llama) ? this.Config.llama.mmap : undefined,
-                cmake : (this.Config.llama) ? this.Config.llama.cmake : undefined,
-                vulkan : (this.Config.llama) ? this.Config.llama.vulkan : undefined,
-                jbuild : (this.Config.llama) ? this.Config.llama.jbuild : undefined
-            }))
+            this.LlamaCPP.NewInstance()
             
         }
 
-        this.LlamaCPP_Instances_RestartAll = () => {
-            
-        }
-
-        this.Cleaner = setInterval(() => {
-            this.LlamaCPP_Instances.forEach((e,i) => {
-                if((Date.now()-e.LastAction) > this.Config.SleepTolerance){
-                    this.LlamaCPP_Instances.splice(i,1)
-                }
-            })
-        },10000)
-
-        this.Log = setInterval(() => {
-            LogMaster.Log('LlamaCPP_Instances',this.LlamaCPP_Instances)
-        },1000)
-
+        
         this.Executions = []
         
         // de forma geral criar id unico e ID UNICO em escala plugavel
@@ -100,7 +105,7 @@ class EasyAI {
         }
         */
 
-
+/*
         LogMaster.Log('EasyAI Instance',{
             ...(this.LlamaCPP && {
                 Event : 'Start',
@@ -116,7 +121,8 @@ class EasyAI {
             }),
             
         })
-            
+*/        
+
     }
 
 async Generate(prompt = 'Once upon a time', config = {openai : false,logerror : false, stream: true, retryLimit: 420000,tokenCallback : () => {}}) {

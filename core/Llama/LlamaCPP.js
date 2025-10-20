@@ -398,7 +398,7 @@ async Generate(prompt = 'Once upon a time',config = {logerror : false, stream : 
         
     } else {
         if(config.logerror){
-            console.error('Erro no LlamaCPP.Generate() | Modelo não carregado ou llama.cpp não encontrado');
+            console.error('Erro no LlamaCPP.Generate() | Modelo não carregado, llama.cpp não encontrado ou o server não está ON');
         }
         return false;
     }
