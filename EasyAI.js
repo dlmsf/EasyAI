@@ -13,6 +13,7 @@ import generateUniqueCode from "./core/util/generateUniqueCode.js";
 
 class EasyAI {
     constructor(config = {
+        GenerateTimeout : 60000,
         LlamaCPP_InstancesLimit : 100,
         ScaleMode : 'Process',
         SleepTolerance : 300000,
@@ -73,51 +74,56 @@ class EasyAI {
 
             },
             Cleaner : setInterval(() => {
-                this.LlamaCPP_Instances.forEach((e,i) => {
+                this.LlamaCPP.Instances.forEach((e,i) => {
                     if(((Date.now()-e.LastAction) > this.Config.SleepTolerance) && i != 0){
-                        this.LlamaCPP_Instances.splice(i,1)
+                        this.LlamaCPP.Instances.splice(i,1)
                     }
                 })
             },10000),
 
             Log : setInterval(() => {
-                LogMaster.Log('LlamaCPP_Instances',this.LlamaCPP_Instances)
+                LogMaster.Log('LlamaCPP.Instances',this.LlamaCPP.Instances)
             },1000),
 
             GetInstance_Queue : [],
 
-            GetInstance_QueueProcessor : (() => {
+            GetInstance_QueueProcessor: (() => {
                 const processQueue = () => {
-
-                    this.LlamaCPP.GetInstance_Queue.forEach((request,i) => {
+                    // Check if LlamaCPP is ready
+                    if (!this.LlamaCPP || !this.LlamaCPP.GetInstance_Queue) {
+                        setTimeout(processQueue, 100); // Wait longer if not ready
+                        return;
+                    }
+            
+                    this.LlamaCPP.GetInstance_Queue.forEach((request, i) => {
                         if (request.index === -1) {
-                            let index = -1
-                            while(index == -1){
-                                index = this.LlamaCPP.Instances.findIndex(e => e.InUse == false)
-                                if(index == -1){
-                                    this.LlamaCPP.NewInstance()
+                            let index = -1;
+                            while (index == -1) {
+                                index = this.LlamaCPP.Instances.findIndex(e => e.InUse == false);
+                                if (index == -1) {
+                                    this.LlamaCPP.NewInstance();
                                 }
                             }
-                            this.LlamaCPP.Instances[index].InUse = true
-                            this.LlamaCPP.GetInstance_Queue[i].index = index
+                            this.LlamaCPP.Instances[index].InUse = true;
+                            this.LlamaCPP.GetInstance_Queue[i].index = index;
                         }
                     });
-
+            
                     setTimeout(processQueue, 10);
                 };
                 return processQueue();
             })(),
 
-            GetInstance : async () => {
-                let code = generateUniqueCode({length : 10,existingObjects : this.LlamaCPP.GetInstance_Queue,codeProperty : 'id'})
+            GetInstance: async () => {
+                let code = generateUniqueCode({length: 10, existingObjects: this.LlamaCPP.GetInstance_Queue, codeProperty: 'id'})
                 this.LlamaCPP.GetInstance_Queue.push({
-                    id : code,
-                    index : -1
+                    id: code,
+                    index: -1
                 })
-
-                async function waitUntilReady(code) {
+            
+                const waitUntilReady = (code) => {
                     return new Promise((resolve) => {
-                        function check() {
+                        const check = () => {
                             const instance = this.LlamaCPP.GetInstance_Queue.find(e => e.id == code);
                             if (instance && instance.index >= 0) {
                                 resolve(instance);
@@ -132,10 +138,22 @@ class EasyAI {
                 await waitUntilReady(code)
                 
                 let index = this.LlamaCPP.GetInstance_Queue[this.LlamaCPP.GetInstance_Queue.findIndex(e => e.id == code)].index
-                this.LlamaCPP.GetInstance_Queue.splice(this.LlamaCPP.GetInstance_Queue.findIndex(e => e.id == code),1)
+                this.LlamaCPP.GetInstance_Queue.splice(this.LlamaCPP.GetInstance_Queue.findIndex(e => e.id == code), 1)
                 return index
-
             }
+        }
+
+        this.WaitServerOn = async (instanceIndex) => {
+            const timeout = this.Config.GenerateTimeout;
+            const startTime = Date.now();
+            
+            while (!this.LlamaCPP.Instances[instanceIndex].ServerOn) {
+                if (Date.now() - startTime > timeout) {
+                    throw new Error(`Server startup timeout after ${timeout}ms`);
+                }
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            // Server is ready
         }
 
 
@@ -202,6 +220,30 @@ async Generate(prompt = 'Once upon a time', config = {openai : false,logerror : 
 
         } else {
 
+            let index = await this.LlamaCPP.GetInstance()
+            if(this.LlamaCPP.Instances[index].ServerOn){
+                let result = await this.LlamaCPP.Instances[index].Generate(prompt, config, config.tokenCallback);
+                if (result !== false) {
+                    result = renameProperty(result,'content','full_text')
+                    return result;
+                }
+            } else {
+                try {
+                    await this.WaitServerOn(index)
+                    let result = await this.LlamaCPP.Instances[index].Generate(prompt, config, config.tokenCallback);
+                if (result !== false) {
+                    result = renameProperty(result,'content','full_text')
+                    return result;
+                }
+                } catch(e) {
+                    throw new Error("Generate method failed: retry limit reached.");
+                }
+            
+                
+            }
+            
+
+            /*
             let attempts = 0;
             const startTime = Date.now();
             let lastLogTime = Date.now(); 
@@ -227,6 +269,7 @@ async Generate(prompt = 'Once upon a time', config = {openai : false,logerror : 
             }
     
             throw new Error("Generate method failed: retry limit reached.");
+        */  
 
         }
 
