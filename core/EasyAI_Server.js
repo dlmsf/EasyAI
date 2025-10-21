@@ -189,7 +189,7 @@ class EasyAI_Server {
         */
 
         try {
-            await execAsync(`pm2 start ${serverScriptPath}`);
+            await execAsync(`pm2 start ${serverScriptPath} --cwd ${process.cwd()}`);
             console.log("PM2 process successfully managed.");
             return uniqueFileName.slice(0,uniqueFileName.length-4);
         } catch (error) {
