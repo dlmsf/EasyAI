@@ -136,8 +136,8 @@ constructor(config = {}) {
                     
                     if(this.Config.Llamacpp_InstancesRawLog){
                         this.LlamaCPP.Log = setInterval(() => {
-                            LogMaster.Log('LlamaCPP.Instances', this.LlamaCPP.Instances)
-                        }, 5000)
+                            LogMaster.Log('LlamaCPP Instances', this.LlamaCPP.Instances,{statusMode : true})
+                        }, 100)
                     }
                 }
             },

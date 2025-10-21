@@ -10,8 +10,8 @@ class LogMaster {
     static hudSocketPath = process.platform === 'win32' ? '\\\\.\\pipe\\logmaster' : '/tmp/logmaster.sock';
     static eventEmitter = new EventEmitter();
     static isWatching = false;
-    static activeTypeFilter = null; // For filtering logs in real-time
-    static socket = null; // To keep track of the socket
+    static activeTypeFilter = null;
+    static socket = null;
 
     static ensureLogFileExists() {
         if (!fs.existsSync(this.logFilePath)) {
@@ -19,7 +19,21 @@ class LogMaster {
         }
     }
 
-    static Log(type, eventContent) {
+    /**
+     * Creates a log entry with optional status mode for refreshing instances
+     * @param {string} type - The type/category of the log
+     * @param {*} eventContent - The content of the log event
+     * @param {Object} [config] - Configuration options for logging
+     * @param {boolean} [config.statusMode=false] - If true, refreshes existing log of same type instead of creating new instance
+     * @example
+     * // Regular log entry
+     * LogMaster.Log('error', 'User not found');
+     * 
+     * // Status mode log that refreshes/updates existing entry
+     * LogMaster.Log('system_status', { cpu: 45, memory: 80 }, { statusMode: true });
+     * LogMaster.Log('system_status', { cpu: 50, memory: 75 }, { statusMode: true }); // Updates previous entry
+     */
+    static Log(type, eventContent, config = {}) {
         const timestamp = Date.now();
         const date = new Date(timestamp).toLocaleString('pt-BR', {
             timeZone: 'UTC',
@@ -33,7 +47,6 @@ class LogMaster {
             EventContent: eventContent,
         };
     
-        // Write log to the socket if the HUD is active
         const writeToSocket = new Promise((resolve) => {
             const client = net.createConnection(this.hudSocketPath, () => {
                 client.write(JSON.stringify(logEntry));
@@ -42,12 +55,10 @@ class LogMaster {
             });
     
             client.on('error', () => {
-                // If socket logging fails, resolve without interrupting file logging
                 resolve(false);
             });
         });
     
-        // Always log to the file if ConfigManager allows it
         const writeToFile = () => {
             const shouldLog = ConfigManager.getKey('log');
             if (!shouldLog) return;
@@ -59,16 +70,164 @@ class LogMaster {
                 logs = JSON.parse(fs.readFileSync(this.logFilePath, 'utf-8'));
             }
     
-            logs.push(logEntry);
+            // Handle status mode - update existing log of same type instead of adding new
+            if (config.statusMode) {
+                const existingIndex = logs.findIndex(log => log.Type === type);
+                
+                if (existingIndex !== -1) {
+                    // Replace existing log entry
+                    logs[existingIndex] = logEntry;
+                } else {
+                    // Add new log entry if no existing one found
+                    logs.push(logEntry);
+                }
+            } else {
+                // Regular mode - always add new log entry
+                logs.push(logEntry);
+            }
+    
             fs.writeFileSync(this.logFilePath, JSON.stringify(logs, null, 4), 'utf-8');
         };
     
-        // Ensure both logging actions are performed
         writeToSocket.finally(() => {
             writeToFile();
         });
     }
+
+    /**
+     * Retrieves logs with various filtering and pagination options
+     * @param {Object} options - Configuration options for log retrieval
+     * @param {string} [options.type] - Filter logs by specific type
+     * @param {string} [options.search] - Search term to filter logs
+     * @param {number} [options.limit] - Number of logs to return
+     * @param {boolean} [options.reverse=false] - If true, returns logs from newest to oldest
+     * @param {number} [options.offset=0] - Number of logs to skip (for pagination)
+     * @param {Date} [options.startDate] - Start date for date range filtering
+     * @param {Date} [options.endDate] - End date for date range filtering
+     * @param {boolean} [options.includeStatusLogs=true] - Include status mode logs in results
+     * @returns {Array} Array of log entries matching the criteria
+     * @example
+     * // Get last 10 logs of type "error"
+     * const logs = LogMaster.getLogs({ type: "error", limit: 10, reverse: true });
+     * 
+     * // Get first 5 logs containing "user" with pagination
+     * const logs = LogMaster.getLogs({ search: "user", limit: 5, offset: 0 });
+     * 
+     * // Get logs from specific date range
+     * const startDate = new Date('2024-01-01');
+     * const endDate = new Date('2024-01-31');
+     * const logs = LogMaster.getLogs({ startDate, endDate });
+     */
+    static getLogs(options = {}) {
+        this.ensureLogFileExists();
+        
+        let logs = [];
+        try {
+            if (fs.existsSync(this.logFilePath)) {
+                const fileContent = fs.readFileSync(this.logFilePath, 'utf-8').trim();
+                
+                // Handle empty file
+                if (!fileContent) {
+                    logs = [];
+                } else {
+                    logs = JSON.parse(fileContent);
+                }
+                
+                // Ensure logs is always an array
+                if (!Array.isArray(logs)) {
+                    console.warn('Log file contained non-array data, resetting to empty array');
+                    logs = [];
+                    // Optionally fix the file
+                    fs.writeFileSync(this.logFilePath, '[]', 'utf-8');
+                }
+            }
+        } catch (error) {
+            console.error('Error reading log file:', error.message);
+            console.log('Resetting log file to empty array');
+            logs = [];
+            // Reset the file to avoid future errors
+            fs.writeFileSync(this.logFilePath, '[]', 'utf-8');
+        }
     
+        // Rest of your existing filtering code...
+        let filteredLogs = logs;
+    
+        if (options.type) {
+            filteredLogs = filteredLogs.filter(log => log.Type === options.type);
+        }
+    
+        if (options.search) {
+            const searchTerm = options.search.toLowerCase();
+            filteredLogs = filteredLogs.filter(log => 
+                JSON.stringify(log).toLowerCase().includes(searchTerm)
+            );
+        }
+    
+        if (options.startDate || options.endDate) {
+            filteredLogs = filteredLogs.filter(log => {
+                const logDate = new Date(log.TimeStamp);
+                let valid = true;
+                
+                if (options.startDate) {
+                    valid = valid && logDate >= options.startDate;
+                }
+                
+                if (options.endDate) {
+                    valid = valid && logDate <= options.endDate;
+                }
+                
+                return valid;
+            });
+        }
+    
+        if (options.reverse) {
+            filteredLogs = filteredLogs.reverse();
+        }
+    
+        const offset = options.offset || 0;
+        const limit = options.limit || filteredLogs.length;
+        
+        return filteredLogs.slice(offset, offset + limit);
+    }
+
+    /**
+     * Gets the latest status log for a specific type
+     * @param {string} type - The log type to retrieve status for
+     * @returns {Object|null} The latest status log entry or null if not found
+     * @example
+     * const systemStatus = LogMaster.getStatusLog('system_status');
+     * console.log(systemStatus?.EventContent); // { cpu: 50, memory: 75 }
+     */
+    static getStatusLog(type) {
+        const logs = this.getLogs({ type, reverse: true, limit: 1 });
+        return logs.length > 0 ? logs[0] : null;
+    }
+
+    /**
+     * Clears all status logs of a specific type
+     * @param {string} type - The log type to clear
+     * @returns {boolean} True if logs were cleared, false otherwise
+     * @example
+     * LogMaster.clearStatusLogs('system_status');
+     */
+    static clearStatusLogs(type) {
+        this.ensureLogFileExists();
+        
+        let logs = [];
+        if (fs.existsSync(this.logFilePath)) {
+            logs = JSON.parse(fs.readFileSync(this.logFilePath, 'utf-8'));
+        }
+
+        const initialLength = logs.length;
+        logs = logs.filter(log => log.Type !== type);
+        
+        if (logs.length !== initialLength) {
+            fs.writeFileSync(this.logFilePath, JSON.stringify(logs, null, 4), 'utf-8');
+            return true;
+        }
+        
+        return false;
+    }
 
     static startHUD() {
         if (fs.existsSync(this.hudSocketPath)) {
@@ -76,7 +235,7 @@ class LogMaster {
         }
 
         const server = net.createServer((socket) => {
-            this.socket = socket; // Keep track of the socket
+            this.socket = socket;
             socket.on('data', (data) => {
                 const logEntry = JSON.parse(data.toString());
                 if (this.isWatching) {
@@ -110,13 +269,13 @@ class LogMaster {
         console.clear();
         console.log('Entering Watch Mode. Press "q" to return to the main menu.');
 
-        this.isWatching = true; // Enable log display
+        this.isWatching = true;
         const handleKeyPress = (chunk) => {
             if (chunk.trim() === 'q') {
                 process.stdin.removeListener('data', handleKeyPress);
-                this.isWatching = false; // Disable log display
+                this.isWatching = false;
                 if (this.socket) {
-                    this.socket.removeAllListeners('data'); // Stop listening for data
+                    this.socket.removeAllListeners('data');
                 }
                 this.displayHUDMenu();
             }
@@ -133,7 +292,9 @@ class LogMaster {
         console.log('3. Set real-time filter by type');
         console.log('4. Clear real-time filter');
         console.log('5. Enter Watch Mode');
-        console.log('6. Exit HUD');
+        console.log('6. View logs with filters');
+        console.log('7. View status logs');
+        console.log('8. Exit HUD');
 
         process.stdin.resume();
         process.stdin.setEncoding('utf8');
@@ -158,6 +319,12 @@ class LogMaster {
                     this.enterWatchMode();
                     break;
                 case '6':
+                    this.promptAdvancedFilters();
+                    break;
+                case '7':
+                    this.displayStatusLogs();
+                    break;
+                case '8':
                     process.exit();
                     break;
                 default:
@@ -186,7 +353,7 @@ class LogMaster {
 
             if (choice >= 1 && choice <= types.length) {
                 const selectedType = types[choice - 1];
-                const filteredLogs = logs.filter(log => log.Type === selectedType);
+                const filteredLogs = this.getLogs({ type: selectedType });
                 console.log(`Logs of type "${selectedType}":`, filteredLogs);
             } else {
                 console.log('Invalid choice. Returning to menu.');
@@ -206,10 +373,7 @@ class LogMaster {
 
         const handleSearchTerm = (input) => {
             const searchTerm = input.trim();
-            this.ensureLogFileExists();
-
-            const logs = JSON.parse(fs.readFileSync(this.logFilePath, 'utf-8'));
-            const filteredLogs = logs.filter(log => JSON.stringify(log).includes(searchTerm));
+            const filteredLogs = this.getLogs({ search: searchTerm });
 
             console.log(`Logs containing "${searchTerm}":`, filteredLogs);
 
@@ -218,6 +382,57 @@ class LogMaster {
         };
 
         process.stdin.once('data', handleSearchTerm);
+    }
+
+    static promptAdvancedFilters() {
+        console.log('Advanced Log Filtering');
+        console.log('Enter filter options as JSON (or press Enter for all logs):');
+        console.log('Example: {"type": "error", "limit": 10, "reverse": true}');
+
+        const handleFilterInput = (input) => {
+            try {
+                const options = input.trim() ? JSON.parse(input.trim()) : {};
+                const filteredLogs = this.getLogs(options);
+                
+                console.log(`Found ${filteredLogs.length} logs:`);
+                console.log(filteredLogs);
+
+                console.log('Press any key to return to the main menu.');
+                process.stdin.once('data', () => this.displayHUDMenu());
+            } catch (error) {
+                console.log('Invalid JSON format. Please try again.');
+                this.promptAdvancedFilters();
+            }
+        };
+
+        process.stdin.once('data', handleFilterInput);
+    }
+
+    static displayStatusLogs() {
+        console.log('Current Status Logs:');
+        
+        this.ensureLogFileExists();
+        const logs = JSON.parse(fs.readFileSync(this.logFilePath, 'utf-8'));
+        
+        // Find types that have status logs (latest entry for each type)
+        const statusLogs = {};
+        logs.forEach(log => {
+            statusLogs[log.Type] = log; // This will keep only the latest due to iteration order
+        });
+
+        const statusEntries = Object.values(statusLogs);
+        
+        if (statusEntries.length === 0) {
+            console.log('No status logs found.');
+        } else {
+            statusEntries.forEach(log => {
+                this.displayLog(log);
+                console.log(''); // Add spacing between logs
+            });
+        }
+
+        console.log('Press any key to return to the main menu.');
+        process.stdin.once('data', () => this.displayHUDMenu());
     }
 
     static promptSetFilter() {
@@ -261,23 +476,146 @@ class LogMaster {
             if (Array.isArray(content)) {
                 return '[ARRAY]';
             } else {
-                // Simplify objects to show key-value pairs, limited to a reasonable size
                 const simplified = {};
                 for (const [key, value] of Object.entries(content)) {
                     if (typeof value === 'object') {
                         simplified[key] = '[OBJECT]';
                     } else {
-                        simplified[key] = String(value).slice(0, 30); // Truncate long strings
+                        simplified[key] = String(value).slice(0, 30);
                     }
                 }
                 return simplified;
             }
         } else if (typeof content === 'string') {
-            return content.slice(0, 50) + (content.length > 50 ? '...' : ''); // Truncate if too long
+            return content.slice(0, 50) + (content.length > 50 ? '...' : '');
         } else {
             return String(content);
         }
     }
+
+    // Command line interface when run directly
+    static async runCLI() {
+        if (process.argv.length > 2) {
+            const command = process.argv[2];
+            
+            switch (command) {
+                case 'view':
+                    await this.handleViewCommand();
+                    break;
+                case 'hud':
+                    this.startHUD();
+                    break;
+                case 'types':
+                    this.displayAvailableTypes();
+                    break;
+                case 'status':
+                    await this.handleStatusCommand();
+                    break;
+                case 'help':
+                    this.displayHelp();
+                    break;
+                default:
+                    console.log('Unknown command. Use "help" to see available commands.');
+                    process.exit(1);
+            }
+        } else {
+            this.displayHelp();
+        }
+    }
+
+    static async handleViewCommand() {
+        const options = {};
+        
+        for (let i = 3; i < process.argv.length; i++) {
+            const arg = process.argv[i];
+            
+            if (arg === '--type' && process.argv[i + 1]) {
+                options.type = process.argv[++i];
+            } else if (arg === '--search' && process.argv[i + 1]) {
+                options.search = process.argv[++i];
+            } else if (arg === '--limit' && process.argv[i + 1]) {
+                options.limit = parseInt(process.argv[++i]);
+            } else if (arg === '--reverse') {
+                options.reverse = true;
+            } else if (arg === '--offset' && process.argv[i + 1]) {
+                options.offset = parseInt(process.argv[++i]);
+            }
+        }
+        
+        const logs = this.getLogs(options);
+        console.log(JSON.stringify(logs, null, 2));
+    }
+
+    static async handleStatusCommand() {
+        const type = process.argv[3]; // Get type from command line
+        
+        if (type) {
+            // Get specific status log
+            const statusLog = this.getStatusLog(type);
+            if (statusLog) {
+                console.log(JSON.stringify(statusLog, null, 2));
+            } else {
+                console.log(`No status log found for type: ${type}`);
+            }
+        } else {
+            // Show all status logs
+            this.ensureLogFileExists();
+            const logs = JSON.parse(fs.readFileSync(this.logFilePath, 'utf-8'));
+            
+            const statusLogs = {};
+            logs.forEach(log => {
+                statusLogs[log.Type] = log;
+            });
+
+            const statusEntries = Object.values(statusLogs);
+            console.log(JSON.stringify(statusEntries, null, 2));
+        }
+    }
+
+    static displayAvailableTypes() {
+        this.ensureLogFileExists();
+        const logs = JSON.parse(fs.readFileSync(this.logFilePath, 'utf-8'));
+        const types = [...new Set(logs.map(log => log.Type))];
+        
+        console.log('Available log types:');
+        types.forEach(type => console.log(`- ${type}`));
+    }
+
+    static displayHelp() {
+        console.log(`
+LogMaster CLI Usage:
+
+Commands:
+  view [options]        - View logs with filters
+  hud                   - Start the HUD interface
+  types                 - List all available log types
+  status [type]         - View status logs (all or specific type)
+  help                  - Show this help message
+
+View Options:
+  --type <type>         - Filter by log type
+  --search <term>       - Search for term in logs
+  --limit <number>      - Limit number of results
+  --reverse             - Show newest first
+  --offset <number>     - Skip number of results
+
+Status Mode Usage (in code):
+  LogMaster.Log('type', content, { statusMode: true });
+
+Examples:
+  node LogMaster.js view --type error --limit 10
+  node LogMaster.js view --search "user" --reverse
+  node LogMaster.js status system_status
+  node LogMaster.js status
+  node LogMaster.js hud
+  node LogMaster.js types
+        `);
+    }
+}
+
+// If this file is run directly, execute the CLI
+if (import.meta.url === `file://${process.argv[1]}`) {
+    LogMaster.runCLI().catch(console.error);
 }
 
 export default LogMaster;
