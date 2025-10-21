@@ -12,35 +12,75 @@ import FileTool from "./core/useful/FileTool.js";
 import generateUniqueCode from "./core/util/generateUniqueCode.js";
 
 class EasyAI {
-    constructor(config = {
-        GenerateTimeout : 60000,
-        LlamaCPP_InstancesLimit : 100,
-        ScaleMode : 'Process',
-        SleepTolerance : 300000,
-        openai_token : '',
-        openai_model : undefined,
-        server_url : '',
-        server_port : 4000,
-        server_token : '',
-        llama : {jbuild : false,
-            vulkan : false,
-            cmake : false,
-            server_port : undefined,
-            git_hash : undefined,
-            llama_model : '',
-            cuda : false,
-            gpu_layers : undefined,
-            threads : undefined,
-            lora : undefined,
-            lorabase : undefined,
-            context : undefined,
-            slots : undefined,
-            mlock : undefined,
-            mmap : undefined}}){
-
-        this.Config = config
-
-        //this.Config.SleepTolerance = 30000
+    /**
+ * @param {Object} config
+ * @param {boolean} [config.Llamacpp_InstancesRawLog=false]
+ * @param {number} [config.GenerateTimeout=60000]
+ * @param {number} [config.LlamaCPP_InstancesLimit=100]
+ * @param {string} [config.ScaleMode='Process']
+ * @param {number} [config.SleepTolerance=300000]
+ * @param {string} [config.openai_token='']
+ * @param {string} [config.openai_model]
+ * @param {string} [config.server_url='']
+ * @param {number} [config.server_port=4000]
+ * @param {string} [config.server_token='']
+ * @param {Object} [config.llama]
+ * @param {boolean} [config.llama.jbuild=false]
+ * @param {boolean} [config.llama.vulkan=false]
+ * @param {boolean} [config.llama.cmake=false]
+ * @param {number} [config.llama.server_port]
+ * @param {string} [config.llama.git_hash]
+ * @param {string} [config.llama.llama_model='']
+ * @param {boolean} [config.llama.cuda=false]
+ * @param {number} [config.llama.gpu_layers]
+ * @param {number} [config.llama.threads]
+ * @param {string} [config.llama.lora]
+ * @param {string} [config.llama.lorabase]
+ * @param {number} [config.llama.context]
+ * @param {number} [config.llama.slots]
+ * @param {boolean} [config.llama.mlock]
+ * @param {boolean} [config.llama.mmap]
+ */
+constructor(config = {}) {
+    const defaults = {
+        Llamacpp_InstancesRawLog: false,
+        GenerateTimeout: 60000,
+        LlamaCPP_InstancesLimit: 100,
+        ScaleMode: 'Process',
+        SleepTolerance: 200000,
+        openai_token: '',
+        openai_model: undefined,
+        server_url: '',
+        server_port: 4000,
+        server_token: '',
+        llama: {
+            jbuild: false,
+            vulkan: false,
+            cmake: false,
+            server_port: undefined,
+            git_hash: undefined,
+            llama_model: '',
+            cuda: false,
+            gpu_layers: undefined,
+            threads: undefined,
+            lora: undefined,
+            lorabase: undefined,
+            context: undefined,
+            slots: undefined,
+            mlock: undefined,
+            mmap: undefined
+        }
+    };
+    
+    this.Config = {
+        ...defaults,
+        ...config,
+        llama: {
+            ...defaults.llama,
+            ...(config.llama || {})
+        }
+    };
+        //this.Config.SleepTolerance = 20000
 
         this.ChatModule = new ChatModule()
         this.OpenAI = (config.openai_token) ? new OpenAI(config.openai_token,{model : config.openai_model}) : null
@@ -85,7 +125,7 @@ class EasyAI {
                 if (!this.LlamaCPP.Cleaner && this.LlamaCPP.Instances.length > 0) {
                     this.LlamaCPP.Cleaner = setInterval(() => {
                         this.LlamaCPP.Instances.forEach((instance, index) => {
-                            if (((Date.now() - instance.LastAction) > this.Config.SleepTolerance) && index != 0) {
+                            if (((Date.now() - instance.LastAction) > this.Config.SleepTolerance) && index != 0 && !this.LlamaCPP.Instances[index].InUse) {
                                 this.LlamaCPP.Instances.splice(index, 1)
                                 if (this.LlamaCPP.Instances.length === 0) {
                                     this.LlamaCPP.stopAll();
@@ -93,10 +133,12 @@ class EasyAI {
                             }
                         })
                     }, 10000)
-        
-                    this.LlamaCPP.Log = setInterval(() => {
-                        LogMaster.Log('LlamaCPP.Instances', this.LlamaCPP.Instances)
-                    }, 1000)
+                    
+                    if(this.Config.Llamacpp_InstancesRawLog){
+                        this.LlamaCPP.Log = setInterval(() => {
+                            LogMaster.Log('LlamaCPP.Instances', this.LlamaCPP.Instances)
+                        }, 5000)
+                    }
                 }
             },
             startQueueProcessor: () => {

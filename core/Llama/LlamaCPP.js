@@ -390,15 +390,18 @@ async Generate(prompt = 'Once upon a time',config = {logerror : false, stream : 
 
        return await CompletionPostRequest({prompt : prompt,...config},{},(stream) => {tokenCallback && tokenCallback(stream)},this.ServerPort)
        .then(s => {
+        this.LastAction = Date.now()
         this.InUse = false
         return s
        })
        .catch(e => {
+        this.LastAction = Date.now()
         this.InUse = false
        })
         
     } else {
         if(config.logerror){
+            this.LastAction = Date.now()
             console.error('Erro no LlamaCPP.Generate() | Modelo não carregado, llama.cpp não encontrado ou o server não está ON');
         }
         return false;
