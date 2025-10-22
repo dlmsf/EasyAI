@@ -287,7 +287,28 @@ async Generate(prompt = 'Once upon a time', config = {openai : false,logerror : 
                     delete config.openai
                     return await this.OpenAI.Generate(prompt,config)
                 } else {
-                    return await consumeGenerateRoute({serverUrl : this.ServerURL,port : this.ServerPORT,prompt : prompt,token : this.ServerTOKEN,config : config,onData : config.tokenCallback})
+                    let consume_result = await consumeGenerateRoute({serverUrl : this.ServerURL,port : this.ServerPORT,prompt : prompt,token : this.ServerTOKEN,config : config,onData : config.tokenCallback})
+                    if(consume_result.error && consume_result.error == 'server offline'){
+                        const tokens = ["Sorry", ", ", "I'm ", "unable ", "to ", "respond ", "at ", "the ", "moment."];
+                        consume_result.full_text = "Sorry, I'm unable to respond at the moment.";
+                    
+                        if(config.stream == true){ // Fixed: = to ==
+                            return new Promise((resolve) => {
+                                let i = 0;
+                                (function next() {
+                                    if (i < tokens.length) {
+                                        config.tokenCallback({stream: {content: tokens[i]}});
+                                        i++;
+                                        setTimeout(next, 45);
+                                    } else {
+                                        resolve(consume_result);
+                                    }
+                                })();
+                            });
+                        }
+                    }
+
+                    return consume_result
                 }
                 
             } else if(this.OpenAI){
