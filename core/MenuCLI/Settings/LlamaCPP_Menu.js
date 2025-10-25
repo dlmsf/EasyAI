@@ -4,6 +4,8 @@ import MenuCLI from "../MenuCLI.js"
 import RequirementsMenu from "../Requirements/RequirementsMenu.js"
 import TextGeneration_Menu from "./TextGeneration_Menu.js"
 import { cpus } from 'os';
+import LlamaCPP_InstancesView from "../../util/LlamaCPP_InstancesView.js"
+import readline from 'readline';
 
 export class ThreadDetector {
     static getSystemThreads() {
@@ -88,6 +90,21 @@ options : [
                     
                 }
                 },
+                {
+                    name : ColorText.orange('Instances Monitor'),
+                    action : () => {
+                        console.clear()
+                        MenuCLI.close
+                        LlamaCPP_InstancesView(() => {
+                            MenuCLI.rl = readline.createInterface({
+                                input: process.stdin,
+                                output: process.stdout
+                              });
+                            MenuCLI.displayMenu(LlamaCPP_Menu)
+                        })
+                        
+                        }
+                    },
             {
                 name : 'Install (Requirements Menu)',
                 action : () => {
