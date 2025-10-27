@@ -159,7 +159,8 @@ constructor(config = {}) {
                                 let created_uniqueid
                                 if(!request.noCreation && instanceIndex == -1){
                                     created_uniqueid = this.LlamaCPP.NewInstance();
-                                    this.LlamaCPP.GetInstance_Queue[index].index = this.LlamaCPP.Instances.findIndex(instance => instance.UniqueID == created_uniqueid);
+                                    instanceIndex = this.LlamaCPP.Instances.findIndex(instance => instance.UniqueID == created_uniqueid);
+                                    this.LlamaCPP.GetInstance_Queue[index].index = instanceIndex
                                     this.LlamaCPP.Instances[instanceIndex].InUse = true;
                                 } else {
                                     this.LlamaCPP.GetInstance_Queue[index].index = instanceIndex
