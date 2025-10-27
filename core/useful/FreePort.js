@@ -2,12 +2,13 @@ import net from 'net';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import os from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configuration
-const LOCK_DIR = path.join(__dirname, '.port-locks');
+// Configuration - Changed to system global directory
+const LOCK_DIR = path.join(os.tmpdir(), 'node-port-locks-global');
 const LOCK_DURATION = 10000; // 10 seconds
 const CLEANUP_INTERVAL = 30000; // 30 seconds
 
@@ -15,24 +16,32 @@ const CLEANUP_INTERVAL = 30000; // 30 seconds
 let queue = [];
 let processing = false;
 let cleanupInterval;
+let initializationPromise = null;
 
 /**
  * Initialize the lock directory and cleanup process
  */
 async function initialize() {
-  try {
-    await fs.mkdir(LOCK_DIR, { recursive: true });
-    
-    // Start cleanup interval if not already running
-    if (!cleanupInterval) {
-      cleanupInterval = setInterval(cleanupExpiredLocks, CLEANUP_INTERVAL);
-      process.on('exit', () => {
-        if (cleanupInterval) clearInterval(cleanupInterval);
-      });
-    }
-  } catch (error) {
-    console.warn('Could not initialize port lock directory:', error.message);
+  // Ensure initialization only happens once
+  if (!initializationPromise) {
+    initializationPromise = (async () => {
+      try {
+        await fs.mkdir(LOCK_DIR, { recursive: true });
+        
+        // Start cleanup interval if not already running
+        if (!cleanupInterval) {
+          cleanupInterval = setInterval(cleanupExpiredLocks, CLEANUP_INTERVAL);
+          process.on('exit', () => {
+            if (cleanupInterval) clearInterval(cleanupInterval);
+          });
+        }
+      } catch (error) {
+        console.warn('Could not initialize global port lock directory:', error.message);
+      }
+    })();
   }
+  
+  return initializationPromise;
 }
 
 /**
@@ -83,14 +92,14 @@ async function processQueue() {
  */
 async function findAvailablePortWithLock(start) {
   for (let port = start; port < 65536; port++) {
-    // Check if port is locked
+    // Check if port is locked using global system lock
     if (await isPortLocked(port)) {
       continue;
     }
     
     // Check if port is actually available
     if (await isPortAvailable(port)) {
-      // Try to create lock file
+      // Try to create global system lock file
       if (await createLockFile(port)) {
         return port;
       }
@@ -100,7 +109,7 @@ async function findAvailablePortWithLock(start) {
 }
 
 /**
- * Checks if a port is currently locked
+ * Checks if a port is currently locked in global system directory
  * @param {number} port - Port number to check
  * @returns {Promise<boolean>} True if port is locked
  */
@@ -126,7 +135,7 @@ async function isPortLocked(port) {
 }
 
 /**
- * Creates a lock file for a port
+ * Creates a lock file for a port in global system directory
  * @param {number} port - Port number to lock
  * @returns {Promise<boolean>} True if lock was created successfully
  */
@@ -134,7 +143,7 @@ async function createLockFile(port) {
   const lockFile = getLockFilePath(port);
   
   try {
-    // Try to create lock file exclusively
+    // Try to create lock file exclusively in global system directory
     const fd = await fs.open(lockFile, 'wx');
     await fd.close();
     
@@ -143,13 +152,16 @@ async function createLockFile(port) {
       port,
       timestamp: Date.now(),
       pid: process.pid,
-      expires: Date.now() + LOCK_DURATION
+      expires: Date.now() + LOCK_DURATION,
+      // Additional info to identify it's a global system lock
+      global: true,
+      hostname: os.hostname()
     };
     
     await fs.writeFile(lockFile, JSON.stringify(lockInfo, null, 2));
     return true;
   } catch (error) {
-    // Lock file already exists or can't be created
+    // Lock file already exists or can't be created in global directory
     return false;
   }
 }
@@ -183,16 +195,16 @@ async function isPortAvailable(port) {
 }
 
 /**
- * Gets the file path for a port lock file
+ * Gets the file path for a port lock file in global system directory
  * @param {number} port - Port number
- * @returns {string} Lock file path
+ * @returns {string} Global system lock file path
  */
 function getLockFilePath(port) {
   return path.join(LOCK_DIR, `port-${port}.lock`);
 }
 
 /**
- * Clean up expired lock files
+ * Clean up expired lock files from global system directory
  */
 async function cleanupExpiredLocks() {
   try {
@@ -220,7 +232,7 @@ async function cleanupExpiredLocks() {
 }
 
 /**
- * Manually release a port lock (useful for testing or explicit cleanup)
+ * Manually release a port lock from global system directory (useful for testing or explicit cleanup)
  * @param {number} port - Port number to release
  */
 export async function releasePort(port) {
@@ -234,7 +246,7 @@ export async function releasePort(port) {
 }
 
 /**
- * Get currently locked ports (for debugging/monitoring)
+ * Get currently locked ports from global system directory (for debugging/monitoring)
  * @returns {Promise<number[]>} Array of locked ports
  */
 export async function getLockedPorts() {

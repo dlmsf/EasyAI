@@ -125,10 +125,6 @@ class EasyAI_WebGPT {
       }
     });
 
-    this.server.listen(this.port, () => {
-      console.log(`Server running: http://localhost:${this.port}`);
-    });
-
     EasyAI_WebGPT.instance = this;
   }
 
@@ -143,8 +139,8 @@ class EasyAI_WebGPT {
 
     const fileContent = `import EasyAI from '${easyAIServerPath}';
 const config = ${JSON.stringify(config)};
-const server = new EasyAI.WebGPT(config);`;
-
+const server = new EasyAI.WebGPT(config);
+server.start()`
     writeFileSync(serverScriptPath, fileContent);
 
     //if (!(await PM2.Check())) await PM2.Install();
@@ -158,6 +154,18 @@ const server = new EasyAI.WebGPT(config);`;
       return false;
     }
   }
+
+  async start() {
+    if(this.handle_port){
+        this.port = await FreePort(this.port);
+    }
+    this.server.listen(this.port, () => {
+        const primaryIP = this.getPrimaryIP();
+        console.log(`EasyAI server is running on http://${primaryIP}:${this.port}`);
+    });
 }
+
+}
+
 
 export default EasyAI_WebGPT;
