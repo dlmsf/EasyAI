@@ -24,7 +24,7 @@ function execAsync(command) {
 class EasyAI_Server {
     constructor(config = {port: 4000, token: '', EasyAI_Config : {}, handle_port : true}) {
         this.port = config.port || 4000;
-        this.handle_port = config.handle_port || true
+        this.handle_port = config.handle_port ?? true
         this.token = config.token || undefined;
         this.AI = new EasyAI(config.EasyAI_Config);
         this.server = http.createServer((req, res) => this.handleRequest(req, res));

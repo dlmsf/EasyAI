@@ -25,6 +25,7 @@ const StartGenerate = (ai,process_name) => {
                 await PM2.Delete(process_name)
                 }
                 console.clear()
+                process.exit(0)
         }})
 }
 
