@@ -308,15 +308,33 @@ install_debs() {
 # Function to install .apk packages
 install_apks() {
   if [ -d "$APK_DIR" ]; then
-    apk_files=$(find "$APK_DIR" -maxdepth 1 -name "*.apk" 2>/dev/null | tr '\n' ' ')
+    # Get list of APK files
+    apk_files=$(find "$APK_DIR" -maxdepth 1 -name "*.apk" 2>/dev/null)
+    
     if [ -n "$apk_files" ]; then
-      log_message "Installing .apk packages from $APK_DIR..."
-      if [ "$LOG_MODE" = true ]; then
-        apk add --allow-untrusted $apk_files &
-      else
-        apk add --allow-untrusted $apk_files > /dev/null 2>&1 &
-      fi
-      show_progress "Installing dependencies" $!
+      log_message "Found APK packages, testing installation..."
+      
+      # Try to install each package individually and skip failures
+      for apk_file in $apk_files; do
+        pkg_name=$(basename "$apk_file")
+        log_message "Attempting to install: $pkg_name"
+        
+        if [ "$LOG_MODE" = true ]; then
+          if apk add --allow-untrusted "$apk_file"; then
+            log_message "✓ Successfully installed: $pkg_name"
+          else
+            log_message "✗ Skipping problematic package: $pkg_name"
+          fi
+        else
+          if apk add --allow-untrusted "$apk_file" > /dev/null 2>&1; then
+            log_message "✓ Installed: $pkg_name"
+          else
+            log_message "✗ Skipped: $pkg_name (dependency conflict)"
+          fi
+        fi
+      done
+      
+      log_message "APK installation process completed."
     else
       log_message "No .apk files found in $APK_DIR. Skipping .apk installation."
     fi
