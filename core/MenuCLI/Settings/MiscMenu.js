@@ -6,6 +6,7 @@ import ModelSearch from '../../util/ModelSearch.js'
 import getFileInstance from "../../util/File.js";
 import { mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
+import getProjectVersion from "../../util/getProjectVersion.js";
 
 // system level
 // --------------------------------------------------
@@ -183,7 +184,7 @@ options : [
             }
         },
         {
-            name : `${ColorText.red('Uninstall')}`,
+            name : `${ColorText.red('Uninstall')} (${ColorText.yellow(getProjectVersion())})`,
             action : () => {
                 MenuCLI.displayMenu(MiscMenu)
                 }
