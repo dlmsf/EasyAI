@@ -32,7 +32,7 @@ if (args.length > 0) {
         }
         
 
-    }).catch(e => {
+    }).catch(async e => {
         console.log(`Save ${ColorText.red(args[0])} não foi encontrado`)
         
         let key = ConfigManager.getKey('mode')
@@ -67,8 +67,16 @@ if (args.length > 0) {
                     
                 }
             } else {
-                server = new EasyAI.Server()
-                server.start()
+                let default_pm2 = ConfigManager.getKey('start-pm2')
+                if(default_pm2 == true){
+                    server = await EasyAI.Server.PM2()
+                    console.log('✔️ PM2 Server iniciado com sucesso !')
+                    process.exit()
+                } else {
+                    server = new EasyAI.Server()
+                    server.start()
+                }
+               
             }
 
     })
