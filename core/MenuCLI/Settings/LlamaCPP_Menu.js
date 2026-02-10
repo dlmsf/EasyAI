@@ -105,6 +105,18 @@ options : [
                         
                         }
                     },
+                    {
+                        name : `Start ${ColorText.cyan('w/Instances Log')} | ${(ConfigManager.getKey('start-llamacpp-instanceslog') ? ColorText.green('ON') : ColorText.red('OFF'))}`,
+                        action : () => {
+                            if(ConfigManager.getKey('start-llamacpp-instanceslog')){
+                                ConfigManager.deleteKey('start-llamacpp-instanceslog')
+                            } else {
+                                ConfigManager.setKey('start-llamacpp-instanceslog',true)
+                                ConfigManager.setKey('log',true)
+                            }
+                            MenuCLI.displayMenu(LlamaCPP_Menu)
+                        }
+                        },
             {
                 name : 'Install (Requirements Menu)',
                 action : () => {

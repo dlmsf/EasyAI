@@ -10,6 +10,7 @@ import ChatPrompt from "./core/MenuCLI/Sandbox/ChatPrompt.js";
 import LogMaster from './core/LogMaster.js'
 import FileTool from "./core/useful/FileTool.js";
 import generateUniqueCode from "./core/util/generateUniqueCode.js";
+import ConfigManager from "./core/ConfigManager.js";
 
 class EasyAI {
     /**
@@ -81,6 +82,7 @@ constructor(config = {}) {
         }
     };
         //this.Config.SleepTolerance = 20000
+        if(ConfigManager.getKey('start-llamacpp-instanceslog')){this.Config.Llamacpp_InstancesRawLog = true}
 
         this.ChatModule = new ChatModule()
         this.OpenAI = (config.openai_token) ? new OpenAI(config.openai_token,{model : config.openai_model}) : null
