@@ -10,8 +10,12 @@ import https from 'https';
  * @param {string} params.token - Authentication token (optional)
  * @param {Object} params.config - Configuration object (optional)
  * @param {Function} params.onData - Callback for streaming data (optional)
- * @returns {Promise<Object>} - Promise resolving to the response data
+ * @returns {Promise<Object>} - Promise resolving to the response data with stream log
  */
+
+// Default error message tokens for streaming
+const DEFAULT_ERROR_TOKENS = ["Sorry", ", ", "I'm ", "unable ", "to ", "respond ", "at ", "the ", "moment."];
+const DEFAULT_ERROR_TEXT = "Sorry, I'm unable to respond at the moment.";
 
 // verificação se é um IP
 function isIpAddress(serverUrl) {
@@ -26,32 +30,54 @@ function consumeGenerateRoute({
   config = {},
   onData = () => {}
 }) {
-  return new Promise(async (resolve, reject) => {
-    const maxRetryTime = 15000; // 15 seconds total retry time
-    const retryDelay = 2000; // 2 seconds between retries
+  return new Promise(async (resolve) => {
+    const maxRetryTime = 30000; // Increased to 30 seconds total retry time
+    const retryDelay = 500; // Reduced to 500ms between retries for faster recovery
     const startTime = Date.now();
     
     let lastError = null;
-    let activeRequest = null; // Track the active request to ensure only one at a time
+    let activeRequest = null;
+    let consecutiveTimeouts = 0;
+    
+    // Array to store all streamed tokens
+    const streamLog = [];
+    
+    // Wrapper for onData to also capture in streamLog
+    const wrappedOnData = (data) => {
+      // Call the original onData
+      onData(data);
+      // Capture in streamLog
+      streamLog.push(data);
+    };
     
     const cleanup = () => {
       activeRequest = null;
     };
     
+    // Check if streaming is enabled
+    const isStreaming = config.stream === true && typeof onData === 'function';
+    
     while (Date.now() - startTime < maxRetryTime) {
       try {
-        // Ensure only one request is active at a time per function call
+        // Ensure only one request is active at a time
         activeRequest = attemptRequest({
           serverUrl,
           port,
           prompt,
           token,
           config,
-          onData
+          onData: wrappedOnData
         });
         
         const result = await activeRequest;
         cleanup();
+        
+        // Add streamLog to the result
+        if (isStreaming) {
+          result.streamLog = streamLog;
+        }
+        
+        // Success! Resolve with the result
         resolve(result);
         return;
         
@@ -59,21 +85,73 @@ function consumeGenerateRoute({
         cleanup();
         lastError = error;
         
-        // If it's not a connection error, don't retry
-        if (!isConnectionError(error)) {
-          resolve({ error: error.message });
-          return;
+        // Track consecutive timeouts to detect pattern
+        if (error.message?.includes('timeout') || error.code === 'ETIMEDOUT') {
+          consecutiveTimeouts++;
+        } else {
+          consecutiveTimeouts = 0;
         }
         
-        // Wait before retrying (only if we haven't exceeded max time)
+        // If it's not a connection error, don't retry (but still handle with error message)
+        if (!isConnectionError(error)) {
+          break;
+        }
+        
+        // If we've had many consecutive timeouts, the server might be starting up
+        // Keep retrying with small delays
+        
+        // Wait before retrying if we still have time
         if (Date.now() - startTime < maxRetryTime - retryDelay) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
     }
     
-    // If we exhausted all retries, return server offline error
-    resolve({ error: "server offline" });
+    // If we get here, it means all retries failed
+    // Handle the error by streaming default message if streaming is enabled
+    
+    if (isStreaming) {
+      // Stream the default error message token by token and capture in streamLog
+      await streamDefaultErrorMessage(wrappedOnData, config);
+      
+      // Resolve with the error object AND the streamLog after streaming completes
+      resolve({ 
+        error: lastError?.message || "server offline",
+        full_text: DEFAULT_ERROR_TEXT,
+        streamLog: streamLog  // Include the captured stream log
+      });
+    } else {
+      // For non-streaming, just return the error object
+      resolve({ 
+        error: lastError?.message || "server offline" 
+      });
+    }
+  });
+}
+
+// Helper function to stream default error message
+async function streamDefaultErrorMessage(onData, config) {
+  return new Promise((resolve) => {
+    let i = 0;
+    
+    function streamNext() {
+      if (i < DEFAULT_ERROR_TOKENS.length) {
+        // Simulate streaming by calling onData with each token
+        onData({
+          stream: {
+            content: DEFAULT_ERROR_TOKENS[i]
+          }
+        });
+        i++;
+        
+        // Use a small delay between tokens to simulate real streaming
+        setTimeout(streamNext, 45);
+      } else {
+        resolve();
+      }
+    }
+    
+    streamNext();
   });
 }
 
@@ -81,8 +159,16 @@ function isConnectionError(error) {
   return error.code === 'ECONNREFUSED' || 
          error.code === 'ETIMEDOUT' || 
          error.code === 'ENOTFOUND' ||
-         error.message.includes('connect') ||
-         error.message.includes('connection');
+         error.code === 'ECONNRESET' ||
+         error.code === 'EAI_AGAIN' ||
+         error.code === 'EHOSTUNREACH' ||
+         error.code === 'ENETUNREACH' ||
+         error.message?.includes('connect') ||
+         error.message?.includes('connection') ||
+         error.message?.includes('timeout') ||
+         error.message?.includes('network') ||
+         error.message?.includes('ECONNREFUSED') ||
+         error.message?.includes('ETIMEDOUT');
 }
 
 function attemptRequest({
@@ -131,7 +217,7 @@ function attemptRequest({
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(postData)
       },
-      timeout: 30000 // 30 second timeout for individual request
+      timeout: 10000 // Reduced to 10 second timeout for faster failure detection
     };
 
     const req = protocol.request(options, (res) => {
@@ -181,3 +267,15 @@ function attemptRequest({
 }
 
 export default consumeGenerateRoute;
+
+/*
+let final_response = await consumeGenerateRoute({
+  serverUrl : 'localhost',
+  port : 6000,
+  prompt : 'once upon a time ',
+  config : {stream : true},
+  onData : (t) => {console.log(t)}
+})
+
+console.log(final_response)
+*/
