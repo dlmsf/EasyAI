@@ -19,6 +19,27 @@ BUILD_MODE=false
 BUILD_COMMIT=""
 
 # =============================================================================
+# SCRIPT HOOKS CONFIGURATION - Add shell scripts to execute during installation
+# =============================================================================
+# PRE_INSTALL_SCRIPTS: Executed with the same command line as install.sh
+# Format: absolute paths or paths relative to install.sh execution path
+PRE_INSTALL_SCRIPTS="
+scripts/pre-install/check-dependencies.sh
+scripts/pre-install/backup-config.sh
+"
+
+# POST_INSTALL_SCRIPTS: Executed after installation/update is complete
+# IMPORTANT: These paths MUST be relative to the INSTALL_DIR
+# They will be executed from the installation directory
+POST_INSTALL_SCRIPTS="
+scripts/post-install/configure-services.sh
+scripts/post-install/setup-permissions.sh
+"
+# =============================================================================
+# END OF SCRIPT HOOKS CONFIGURATION
+# =============================================================================
+
+# =============================================================================
 # MODULAR CONFIGURATION - Add files/folders to exclude from installation here
 # Format: relative paths from REPO_DIR, one per line
 # =============================================================================
@@ -36,6 +57,7 @@ offmodels
 models
 data
 log.json
+scripts
 "
 
 # =============================================================================
@@ -195,6 +217,12 @@ show_help() {
   echo "  chat             Chat interface"
   echo "  ai               Main AI command menu"
   echo "  pm2              Process manager for Node.js"
+  echo ""
+  echo "SCRIPT HOOKS:"
+  echo "  Pre-install scripts:  $PRE_INSTALL_SCRIPTS"
+  echo "  Post-install scripts: $POST_INSTALL_SCRIPTS"
+  echo "  - Pre-install scripts run with the same command line as install.sh"
+  echo "  - Post-install scripts MUST be relative to $INSTALL_DIR"
   echo ""
   echo "WORKING DIRECTORY CONFIGURATION:"
   echo "  By default, all commands run from the installation directory ($INSTALL_DIR)"
@@ -494,6 +522,146 @@ check_installed() {
   fi
 }
 
+# =============================================================================
+# FUNCTION: Execute pre-install hook scripts with the same command line
+# =============================================================================
+execute_pre_install_scripts() {
+  if [ -z "$PRE_INSTALL_SCRIPTS" ]; then
+    log_message "No pre-install scripts configured."
+    return
+  fi
+  
+  log_message "Executing pre-install scripts..."
+  
+  # Get the original command line used to execute this script
+  original_command="$0"
+  for arg in "$@"; do
+    # Properly quote arguments that contain spaces
+    if echo "$arg" | grep -q " "; then
+      original_command="$original_command \"$arg\""
+    else
+      original_command="$original_command $arg"
+    fi
+  done
+  
+  # Get the directory where the original script was executed from
+  execution_dir=$(pwd)
+  
+  for script_path in $PRE_INSTALL_SCRIPTS; do
+    # Skip empty lines
+    [ -z "$script_path" ] && continue
+    
+    log_message "Executing pre-install script: $script_path"
+    
+    # Check if script exists
+    if [ ! -f "$script_path" ]; then
+      log_message "Warning: Script not found: $script_path"
+      continue
+    fi
+    
+    # Check if script is executable
+    if [ ! -x "$script_path" ]; then
+      log_message "Making script executable: $script_path"
+      chmod +x "$script_path"
+    fi
+    
+    # Execute the script with the same command line
+    log_message "Running: $script_path $@"
+    
+    (
+      # Execute in a subshell to preserve environment
+      export ORIGINAL_INSTALL_COMMAND="$original_command"
+      export INSTALL_EXECUTION_DIR="$execution_dir"
+      
+      if [ "$LOG_MODE" = true ]; then
+        "$script_path" "$@" 2>&1 | tee -a "$LOG_FILE"
+      else
+        "$script_path" "$@" > /dev/null 2>&1
+      fi
+    )
+    
+    exit_code=$?
+    
+    if [ $exit_code -eq 0 ]; then
+      log_message "✓ Pre-install script completed successfully: $script_path"
+    else
+      log_message "✗ Pre-install script failed with exit code $exit_code: $script_path"
+      # Continue with other scripts even if one fails
+    fi
+  done
+}
+
+# =============================================================================
+# FUNCTION: Execute post-install scripts from the installation directory
+# =============================================================================
+execute_post_install_scripts() {
+  if [ -z "$POST_INSTALL_SCRIPTS" ]; then
+    log_message "No post-install scripts configured."
+    return
+  fi
+  
+  log_message "Executing post-install scripts from installation directory..."
+  
+  # Verify installation directory exists
+  if [ ! -d "$INSTALL_DIR" ]; then
+    log_message "Error: Installation directory not found: $INSTALL_DIR"
+    return 1
+  fi
+  
+  # Save current directory to return later
+  current_dir=$(pwd)
+  
+  # Change to installation directory
+  cd "$INSTALL_DIR" || {
+    log_message "Error: Could not change to installation directory: $INSTALL_DIR"
+    return 1
+  }
+  
+  log_message "Now in: $(pwd)"
+  
+  for script_path in $POST_INSTALL_SCRIPTS; do
+    # Skip empty lines
+    [ -z "$script_path" ] && continue
+    
+    # Resolve the script path relative to installation directory
+    full_script_path="$INSTALL_DIR/$script_path"
+    
+    log_message "Checking for post-install script: $full_script_path"
+    
+    if [ -f "$full_script_path" ]; then
+      log_message "Executing post-install script: $script_path"
+      
+      # Make executable if needed
+      if [ ! -x "$full_script_path" ]; then
+        log_message "Making script executable: $full_script_path"
+        chmod +x "$full_script_path"
+      fi
+      
+      # Execute from installation directory
+      if [ "$LOG_MODE" = true ]; then
+        "$full_script_path" 2>&1 | tee -a "$LOG_FILE"
+      else
+        "$full_script_path" > /dev/null 2>&1
+      fi
+      
+      exit_code=$?
+      
+      if [ $exit_code -eq 0 ]; then
+        log_message "✓ Post-install script completed successfully: $script_path"
+      else
+        log_message "✗ Post-install script failed with exit code $exit_code: $script_path"
+      fi
+    else
+      log_message "Warning: Post-install script not found in installation directory: $full_script_path"
+    fi
+  done
+  
+  # Return to original directory
+  cd "$current_dir" || {
+    log_message "Warning: Could not return to original directory: $current_dir"
+  }
+}
+
 # Trap to handle Ctrl+C
 trap 'log_message "Installation interrupted."; 
 if [ "$OS_TYPE" = "ubuntu" ]; then 
@@ -550,6 +718,11 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+# =============================================================================
+# EXECUTE PRE-INSTALL SCRIPTS (with same command line)
+# =============================================================================
+execute_pre_install_scripts "$@"
 
 # Install packages based on OS (will be skipped if already installed or --skip-pkgs used)
 install_packages
@@ -669,6 +842,11 @@ fi
 
 # Create command links (either wrappers or direct symlinks based on mode)
 create_command_links "$INSTALL_DIR"
+
+# =============================================================================
+# EXECUTE POST-INSTALL SCRIPTS (strictly from installation directory)
+# =============================================================================
+execute_post_install_scripts
 
 log_message "Setup complete. You can now use the commands globally."
 
