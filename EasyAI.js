@@ -80,6 +80,26 @@ constructor(config = {}) {
             mmap: undefined
         }
     };
+
+    this.Made = false
+    this.Checker = {
+        Runnage : setInterval(() => {
+            if(!this.Made){
+                let quant = 0
+                this.LlamaCPP.Instances.forEach(e => {
+                    if(e.ServerOn && quant < 1){
+                        quant++
+                        console.log('reiniciando')
+                        this.Made = true
+                        this.Checker.Runnage = null
+                        this.LlamaCPP.Instances = []
+                        this.LlamaCPP.NewInstance()
+                    }
+                })
+                
+            }
+        },500)
+    }
     
     this.Config = {
         ...defaults,
