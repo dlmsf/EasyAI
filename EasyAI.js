@@ -346,8 +346,48 @@ async Generate(prompt = 'Once upon a time', config = {openai : false,deepinfra :
                     if(config.openai && this.OpenAI){
                         delete config.openai
                         return await this.OpenAI.Generate(prompt,config)
+                        .catch(e =>{
+                            const tokens = ["Sorry", ", ", "I'm ", "unable ", "to ", "respond ", "at ", "the ", "moment."];
+                        consume_result.full_text = "Sorry, I'm unable to respond at the moment.";
+                    
+                        if(config.stream == true){ 
+                            return new Promise((resolve) => {
+                                let i = 0;
+                                (function next() {
+                                    if (i < tokens.length) {
+                                        config.tokenCallback({stream: {content: tokens[i]}});
+                                        i++;
+                                        setTimeout(next, 45);
+                                    } else {
+                                        resolve(consume_result); // testar trocando por '' dps
+                                    }
+                                })();
+                            });
+                        }
+
+                        })
                     } else if(config.deepinfra && this.DeepInfra) {
                         return await this.DeepInfra.Generate(prompt,config)
+                        .catch(e =>{
+                            const tokens = ["Sorry", ", ", "I'm ", "unable ", "to ", "respond ", "at ", "the ", "moment."];
+                        consume_result.full_text = "Sorry, I'm unable to respond at the moment.";
+                    
+                        if(config.stream == true){ 
+                            return new Promise((resolve) => {
+                                let i = 0;
+                                (function next() {
+                                    if (i < tokens.length) {
+                                        config.tokenCallback({stream: {content: tokens[i]}});
+                                        i++;
+                                        setTimeout(next, 45);
+                                    } else {
+                                        resolve(consume_result); // testar trocando por '' dps
+                                    }
+                                })();
+                            });
+                        }
+
+                        })
                     }
                     
                 } else {
@@ -378,8 +418,48 @@ async Generate(prompt = 'Once upon a time', config = {openai : false,deepinfra :
             } else if(this.OpenAI || this.DeepInfra){
                     if(this.OpenAI){
                         return await this.OpenAI.Generate(prompt,config)
+                        .catch(e =>{
+                            const tokens = ["Sorry", ", ", "I'm ", "unable ", "to ", "respond ", "at ", "the ", "moment."];
+                        consume_result.full_text = "Sorry, I'm unable to respond at the moment.";
+                    
+                        if(config.stream == true){ 
+                            return new Promise((resolve) => {
+                                let i = 0;
+                                (function next() {
+                                    if (i < tokens.length) {
+                                        config.tokenCallback({stream: {content: tokens[i]}});
+                                        i++;
+                                        setTimeout(next, 45);
+                                    } else {
+                                        resolve(consume_result); // testar trocando por '' dps
+                                    }
+                                })();
+                            });
+                        }
+
+                        })
                     } else if(this.DeepInfra){
                         return await this.DeepInfra.Generate(prompt,config)
+                        .catch(e =>{
+                            const tokens = ["Sorry", ", ", "I'm ", "unable ", "to ", "respond ", "at ", "the ", "moment."];
+                        consume_result.full_text = "Sorry, I'm unable to respond at the moment.";
+                    
+                        if(config.stream == true){ 
+                            return new Promise((resolve) => {
+                                let i = 0;
+                                (function next() {
+                                    if (i < tokens.length) {
+                                        config.tokenCallback({stream: {content: tokens[i]}});
+                                        i++;
+                                        setTimeout(next, 45);
+                                    } else {
+                                        resolve(consume_result); // testar trocando por '' dps
+                                    }
+                                })();
+                            });
+                        }
+
+                        })
                     }
                
             }
