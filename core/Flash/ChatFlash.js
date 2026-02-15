@@ -74,23 +74,62 @@ const args = process.argv.slice(2);
 
 if (args.length > 0 || ConfigManager.getKey('defaultchatsave')){
     let toload = (args.length > 0) ? args[0] : ConfigManager.getKey('defaultchatsave')
-    if(toload.toLowerCase() == 'openai'){
-        if(ConfigManager.getKey('openai')){
-            let openai_info = ConfigManager.getKey('openai')
-            ai = new EasyAI({openai_token : openai_info.token, openai_model : openai_info.model})
-            StartChat(ai)
+    if(toload.toLowerCase() == 'openai' || toload.toLowerCase() == 'deepinfra'){
+        if(ConfigManager.getKey('openai') || ConfigManager.getKey('deepinfra')){
+            if(ConfigManager.getKey('openai')){
+                let openai_info = ConfigManager.getKey('openai')
+                ai = new EasyAI({openai_token : openai_info.token, openai_model : openai_info.model})
+                StartChat(ai)
+            } else {
+                let deepinfra_info = ConfigManager.getKey('deepinfra')
+                ai = new EasyAI({deepinfra_token : deepinfra_info.token, deepinfra_model : deepinfra_info.model})
+                StartChat(ai)
+            }
         } else {
+            
             let cli = new TerminalHUD()
             let final_object = {}
-            final_object.token = await cli.ask('OpenAI Token : ')
-            final_object.model = await cli.ask('Select the model',{options : ['gpt-3.5-turbo','gpt-4','gpt-4-turbo-preview','gpt-3.5-turbo-instruct']})
-            let save = await cli.ask('Save the OpenAI config? ',{options : ['yes','no']})
-            if(save == 'yes'){ConfigManager.setKey('openai',final_object)}
-            cli.close(
-            console.clear()
-            )
-            ai = new EasyAI({openai_token : final_object.token, openai_model : final_object.model})
-            StartChat(ai)
+            let ok = false
+            let external = ''
+
+            if(toload.toLowerCase() == 'openai'){
+                final_object.token = await cli.ask('OpenAI Token : ')
+                final_object.model = await cli.ask('Select the model',{options : ['gpt-3.5-turbo','gpt-4','gpt-4-turbo-preview','gpt-3.5-turbo-instruct']})
+                let save = await cli.ask('Save the OpenAI config? ',{options : ['yes','no']})
+                if(save == 'yes'){ConfigManager.setKey('openai',final_object)}
+                cli.close()
+                console.clear()
+                ai = new EasyAI({openai_token : final_object.token, openai_model : final_object.model})
+                StartChat(ai)
+            } else if(toload.toLowerCase() == 'deepinfra'){
+                final_object.token = await cli.ask('DeepInfra Token : ')
+                final_object.model = await cli.ask('Select the model',{options : [
+                    'deepseek-ai/DeepSeek-V3.2',
+                    'meta-llama/Meta-Llama-3.1-8B-Instruct',
+                    'Qwen/Qwen3-235B-A22B-Instruct-2507',
+                    'zai-org/GLM-4.7-Flash'
+                ]})
+                let save = await cli.ask('Save the DeepInfra config? ',{options : ['yes','no']})
+                if(save == 'yes'){ConfigManager.setKey('deepinfra',final_object)}
+                cli.close()
+                console.clear()
+                ai = new EasyAI({deepinfra_token : final_object.token, deepinfra_model : final_object.model})
+                StartChat(ai)
+            }
+
+            /*
+            while(!ok){
+                let selection = await cli.ask('1. OpenAI | 2. DeepInfra : ')
+                let num_selection = Number(selection)
+                if(typeof num_selection == 'number'){
+                    if(num_selection == 1){
+                        
+                    } else if(num_selection){
+                        
+                    }
+                }
+            }
+            */
         }
     } else {
         await ServerSaves.Load(toload)
