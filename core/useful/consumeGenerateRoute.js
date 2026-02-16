@@ -91,6 +91,13 @@ function consumeGenerateRoute({
         cleanup();
         lastError = error;
         
+        // Check if this is an error response from the server (like 403 token error)
+        // If it has a specific error message, pass it through directly
+        if (error.responseBody) {
+          resolve(error.responseBody);
+          return;
+        }
+        
         if (error.message?.includes('timeout') || error.code === 'ETIMEDOUT') {
           consecutiveTimeouts++;
         } else {
@@ -219,6 +226,8 @@ function attemptRequest({
 
       res.on('data', (chunk) => {
         const chunkData = chunk.toString();
+        finalData += chunkData;
+        
         try {
           const parsedChunk = JSON.parse(chunkData);
           
@@ -235,15 +244,25 @@ function attemptRequest({
           }
         } catch (error) {
           // If it's not JSON and streaming is enabled, might be raw content
-          finalData += chunkData;
+          // Continue collecting data
         }
       });
 
       res.on('end', () => {
         if (!hasResolved) {
           try {
-            // Try to parse as JSON first
-            resolve(JSON.parse(finalData));
+            const parsedData = JSON.parse(finalData);
+            
+            // Check if this is an error response (like 403 with error field)
+            // Pass it through exactly as received from the server
+            if (res.statusCode >= 400 && parsedData.error) {
+              const error = new Error(parsedData.error);
+              error.responseBody = parsedData;
+              error.statusCode = res.statusCode;
+              reject(error);
+            } else {
+              resolve(parsedData);
+            }
           } catch (error) {
             // If it's not JSON, return as string
             resolve(finalData);

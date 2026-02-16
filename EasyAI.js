@@ -392,7 +392,7 @@ async Generate(prompt = 'Once upon a time', config = {openai : false,deepinfra :
                     
                 } else {
                     let consume_result = await consumeGenerateRoute({serverUrl : this.ServerURL,port : this.ServerPORT,prompt : prompt,token : this.ServerTOKEN,config : config,onData : config.tokenCallback})
-                    if(consume_result.error && consume_result.error == 'server offline'){
+                    if(consume_result.error && (consume_result.error == 'server offline' || consume_result.error == 'Invalid token.')){
                         const tokens = ["Sorry", ", ", "I'm ", "unable ", "to ", "respond ", "at ", "the ", "moment."];
                         consume_result.full_text = "Sorry, I'm unable to respond at the moment.";
                     
