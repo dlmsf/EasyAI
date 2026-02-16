@@ -1,0 +1,10 @@
+{
+    "version": "0.7.0",
+    "type": "module",
+    "scripts": {
+      "webgpt": "node ./core/Flash/WebGPTFlash.js",
+      "generate": "node ./core/Flash/GenerateFlash.js",
+      "chat": "node ./core/Flash/ChatFlash.js",
+      "ai": "node ./core/MenuCLI/MenuCLI.js"
+    }
+  }
