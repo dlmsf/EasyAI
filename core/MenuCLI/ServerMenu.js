@@ -115,10 +115,6 @@ options : [
             let server = new EasyAI.Server({token : easyai_token,port : easyai_port,EasyAI_Config : easyai_config})
             server.start()
         }
-
-        
-
-        
     }
     },
     {
@@ -128,132 +124,350 @@ options : [
             easyai_port = Number(newport)
             MenuCLI.displayMenu(CustomServer)    
         }
-        },
-        {
-            name : `LlamaCPP PORT | ${easyai_config.llama ? (easyai_config.llama.server_port ? easyai_config.llama.server_port : '8080') : '8080'}`,
-            action : async () => {
-                let newport = await MenuCLI.ask('Digite a nova PORTA : ')
-                if(easyai_config.llama){
-                    easyai_config.llama.server_port = Number(newport)
-                } else {
-                    easyai_config.llama = {}
-                    easyai_config.llama.server_port = Number(newport)
-                }
-                MenuCLI.displayMenu(CustomServer) 
+    },
+    {
+        name : `LlamaCPP PORT | ${easyai_config.llama ? (easyai_config.llama.server_port ? easyai_config.llama.server_port : '8080') : '8080'}`,
+        action : async () => {
+            let newport = await MenuCLI.ask('Digite a nova PORTA : ')
+            if(easyai_config.llama){
+                easyai_config.llama.server_port = Number(newport)
+            } else {
+                easyai_config.llama = {}
+                easyai_config.llama.server_port = Number(newport)
             }
-            },
-            {
-                name : `Webgpt PORT | ${webgpt_port}`,
-                action : async () => {
-                    let newport = await MenuCLI.ask('Digite a nova PORTA : ')
-                    webgpt_port = Number(newport)
-                    MenuCLI.displayMenu(CustomServer)    
-                }
-                },
-            {
-            name : `PM2 | ${withPM2 ? ColorText.green('ON') : ColorText.red('OFF')}`,
-            action : async () => {
-                if(withPM2){
-                    withPM2 = false
-                } else {
-                    withPM2 = true
-                }
-                MenuCLI.displayMenu(CustomServer) 
+            MenuCLI.displayMenu(CustomServer) 
+        }
+    },
+    {
+        name : `Webgpt PORT | ${webgpt_port}`,
+        action : async () => {
+            let newport = await MenuCLI.ask('Digite a nova PORTA : ')
+            webgpt_port = Number(newport)
+            MenuCLI.displayMenu(CustomServer)    
+        }
+    },
+    {
+        name : `PM2 | ${withPM2 ? ColorText.green('ON') : ColorText.red('OFF')}`,
+        action : async () => {
+            if(withPM2){
+                withPM2 = false
+            } else {
+                withPM2 = true
             }
-            },
-            {
-                name : (easyai_token) ? ColorText.green('Access Token') : ColorText.red('Access Token'),
-                action : async  () => {
-                    if(easyai_token){
-                        let response = await MenuCLI.ask('Edit Token',{options : ['New Token','Clear Token','Cancel']})
-                        switch (response) {
-                            case 'New Token':
-                                let token =  await MenuCLI.ask('Set Token : ')
-                                easyai_token = token
-                                MenuCLI.displayMenu(CustomServer)
-                            break;
-
-                            case 'Clear Token':
-                                easyai_token = undefined
-                                MenuCLI.displayMenu(CustomServer)
-                            break;
-                        
-                            default:
-                                MenuCLI.displayMenu(CustomServer)
-                            break;
-                        }
-                    } else {
+            MenuCLI.displayMenu(CustomServer) 
+        }
+    },
+    {
+        name : (easyai_token) ? ColorText.green('Access Token') : ColorText.red('Access Token'),
+        action : async  () => {
+            if(easyai_token){
+                let response = await MenuCLI.ask('Edit Token',{options : ['New Token','Clear Token','Cancel']})
+                switch (response) {
+                    case 'New Token':
                         let token =  await MenuCLI.ask('Set Token : ')
                         easyai_token = token
                         MenuCLI.displayMenu(CustomServer)
-                    }
-                    
-                    }
-        },
-            {
-                name : `Threads | ${easyai_config.llama ? (easyai_config.llama.threads ? ColorText.magenta(easyai_config.llama.threads) : ColorText.green('MAX')) : ColorText.green('MAX')}`,
-                action : async () => {
-                    let newthreads = await MenuCLI.ask('Qntd. Threads : ')
-                    if(easyai_config.llama){
-                        easyai_config.llama.threads = Number(newthreads)
-                    } else {
-                        easyai_config.llama = {}
-                        easyai_config.llama.threads = Number(newthreads)
-                    }
-                    MenuCLI.displayMenu(CustomServer) 
+                    break;
+
+                    case 'Clear Token':
+                        easyai_token = undefined
+                        MenuCLI.displayMenu(CustomServer)
+                    break;
+                
+                    default:
+                        MenuCLI.displayMenu(CustomServer)
+                    break;
                 }
-                },
-    {
-    name : `GPU | ${easyai_config.llama ? (easyai_config.llama.cuda ? ColorText.green('CUDA') : (easyai_config.llama.vulkan ? `${ColorText.orange('Vulkan')} (cmake only)` : ColorText.red('OFF')) ) : ColorText.red('OFF')}`,
-    action : () => {
-                if(easyai_config.llama){
-                    if(easyai_config.llama.cuda){
-                        delete easyai_config.llama.cuda
-                        easyai_config.llama.vulkan = true
-                    } else if(easyai_config.llama.vulkan){
-                        delete easyai_config.llama.vulkan
-                    } else {
-                        easyai_config.llama.cuda = true
-                    }
-                } else {
-                    easyai_config.llama = {}
-                    easyai_config.llama.cuda = true
-                }
+            } else {
+                let token =  await MenuCLI.ask('Set Token : ')
+                easyai_token = token
                 MenuCLI.displayMenu(CustomServer)
             }
+        }
+    },
+    {
+        name : `${ConfigManager.getKey('openai') ? `🌐 ${ColorText.green('OpenAI')}` : `🌐 ${ColorText.red('OpenAI')}`} | ${easyai_config.openai_token ? ColorText.green('ON') : ColorText.red('OFF')}`,
+        action : async () => {
+            // Check if currently enabled (has token)
+            if(!easyai_config.openai_token) {
+                // Turning ON - need to configure
+                if(ConfigManager.getKey('openai')){
+                    let obj = ConfigManager.getKey('openai')
+                    
+                    let response = await MenuCLI.ask('OpenAI Configuration', {options : [
+                        `Use with current model (${ColorText.green(obj.model)})`,
+                        'Change model',
+                        'Edit token',
+                        'Clear configuration',
+                        'Cancel'
+                    ]})
+                    
+                    switch(response) {
+                        case `Use with current model (${ColorText.green(obj.model)})`:
+                            easyai_config.openai_token = obj.token
+                            easyai_config.openai_model = obj.model
+                            // Clear other configs
+                            delete easyai_config.deepinfra_token
+                            delete easyai_config.deepinfra_model
+                            delete easyai_config.server_url
+                            delete easyai_config.server_port
+                            delete easyai_config.llama
+                            MenuCLI.displayMenu(CustomServer)
+                            break
+                            
+                        case 'Change model':
+                            let newModel = await MenuCLI.ask('Select the model', {options : [
+                                'gpt-3.5-turbo',
+                                'gpt-4',
+                                'gpt-4-turbo-preview',
+                                'gpt-3.5-turbo-instruct'
+                            ]})
+                            obj.model = newModel
+                            ConfigManager.setKey('openai', obj)
+                            easyai_config.openai_token = obj.token
+                            easyai_config.openai_model = obj.model
+                            // Clear other configs
+                            delete easyai_config.deepinfra_token
+                            delete easyai_config.deepinfra_model
+                            delete easyai_config.server_url
+                            delete easyai_config.server_port
+                            delete easyai_config.llama
+                            MenuCLI.displayMenu(CustomServer)
+                            break
+                            
+                        case 'Edit token':
+                            let newToken = await MenuCLI.ask('OpenAI Token : ')
+                            obj.token = newToken
+                            ConfigManager.setKey('openai', obj)
+                            easyai_config.openai_token = obj.token
+                            easyai_config.openai_model = obj.model
+                            // Clear other configs
+                            delete easyai_config.deepinfra_token
+                            delete easyai_config.deepinfra_model
+                            delete easyai_config.server_url
+                            delete easyai_config.server_port
+                            delete easyai_config.llama
+                            MenuCLI.displayMenu(CustomServer)
+                            break
+                            
+                        case 'Clear configuration':
+                            ConfigManager.deleteKey('openai')
+                            MenuCLI.displayMenu(CustomServer)
+                            break
+                            
+                        default:
+                            MenuCLI.displayMenu(CustomServer)
+                            break
+                    }
+                } else {
+                    let final_object = {}
+                    final_object.token = await MenuCLI.ask('OpenAI Token : ')
+                    final_object.model = await MenuCLI.ask('Select the model',{options : [
+                        'gpt-3.5-turbo',
+                        'gpt-4',
+                        'gpt-4-turbo-preview',
+                        'gpt-3.5-turbo-instruct'
+                    ]})
+                    if(await MenuCLI.ask('Save key and model?',{options : ['yes','no']}) == 'yes'){
+                        ConfigManager.setKey('openai',final_object)
+                    }
+                    easyai_config.openai_token = final_object.token
+                    easyai_config.openai_model = final_object.model
+                    // Clear other configs
+                    delete easyai_config.deepinfra_token
+                    delete easyai_config.deepinfra_model
+                    delete easyai_config.server_url
+                    delete easyai_config.server_port
+                    delete easyai_config.llama
+                    MenuCLI.displayMenu(CustomServer)
+                }
+            } else {
+                // Toggle OFF - remove token and model
+                delete easyai_config.openai_token
+                delete easyai_config.openai_model
+                MenuCLI.displayMenu(CustomServer)
+            }
+        }
+    },
+    {
+        name : `${ConfigManager.getKey('deepinfra') ? `🌐 ${ColorText.green('DeepInfra')}` : `🌐 ${ColorText.red('DeepInfra')}`} | ${easyai_config.deepinfra_token ? ColorText.green('ON') : ColorText.red('OFF')}`,
+        action : async () => {
+            // Check if currently enabled (has token)
+            if(!easyai_config.deepinfra_token) {
+                // Turning ON - need to configure
+                if(ConfigManager.getKey('deepinfra')){
+                    let obj = ConfigManager.getKey('deepinfra')
+                    
+                    let response = await MenuCLI.ask('DeepInfra Configuration', {options : [
+                        `Use with current model (${ColorText.green(obj.model)})`,
+                        'Change model',
+                        'Edit token',
+                        'Clear configuration',
+                        'Cancel'
+                    ]})
+                    
+                    switch(response) {
+                        case `Use with current model (${ColorText.green(obj.model)})`:
+                            easyai_config.deepinfra_token = obj.token
+                            easyai_config.deepinfra_model = obj.model
+                            // Clear other configs
+                            delete easyai_config.openai_token
+                            delete easyai_config.openai_model
+                            delete easyai_config.server_url
+                            delete easyai_config.server_port
+                            delete easyai_config.llama
+                            MenuCLI.displayMenu(CustomServer)
+                            break
+                            
+                        case 'Change model':
+                            let newModel = await MenuCLI.ask('Select the model', {options : [
+                                'Qwen/Qwen3-235B-A22B-Instruct-2507',
+                                'deepseek-ai/DeepSeek-V3.2',
+                                'meta-llama/Meta-Llama-3.1-8B-Instruct',
+                                'zai-org/GLM-4.7-Flash'
+                            ]})
+                            obj.model = newModel
+                            ConfigManager.setKey('deepinfra', obj)
+                            easyai_config.deepinfra_token = obj.token
+                            easyai_config.deepinfra_model = obj.model
+                            // Clear other configs
+                            delete easyai_config.openai_token
+                            delete easyai_config.openai_model
+                            delete easyai_config.server_url
+                            delete easyai_config.server_port
+                            delete easyai_config.llama
+                            MenuCLI.displayMenu(CustomServer)
+                            break
+                            
+                        case 'Edit token':
+                            let newToken = await MenuCLI.ask('DeepInfra Token : ')
+                            obj.token = newToken
+                            ConfigManager.setKey('deepinfra', obj)
+                            easyai_config.deepinfra_token = obj.token
+                            easyai_config.deepinfra_model = obj.model
+                            // Clear other configs
+                            delete easyai_config.openai_token
+                            delete easyai_config.openai_model
+                            delete easyai_config.server_url
+                            delete easyai_config.server_port
+                            delete easyai_config.llama
+                            MenuCLI.displayMenu(CustomServer)
+                            break
+                            
+                        case 'Clear configuration':
+                            ConfigManager.deleteKey('deepinfra')
+                            MenuCLI.displayMenu(CustomServer)
+                            break
+                            
+                        default:
+                            MenuCLI.displayMenu(CustomServer)
+                            break
+                    }
+                } else {
+                    let final_object = {}
+                    final_object.token = await MenuCLI.ask('DeepInfra Token : ')
+                    final_object.model = await MenuCLI.ask('Select the model',{options : [
+                        'Qwen/Qwen3-235B-A22B-Instruct-2507',
+                        'deepseek-ai/DeepSeek-V3.2',
+                        'meta-llama/Meta-Llama-3.1-8B-Instruct',
+                        'zai-org/GLM-4.7-Flash'
+                    ]})
+                    if(await MenuCLI.ask('Save key and model?',{options : ['yes','no']}) == 'yes'){
+                        ConfigManager.setKey('deepinfra',final_object)
+                    }
+                    easyai_config.deepinfra_token = final_object.token
+                    easyai_config.deepinfra_model = final_object.model
+                    // Clear other configs
+                    delete easyai_config.openai_token
+                    delete easyai_config.openai_model
+                    delete easyai_config.server_url
+                    delete easyai_config.server_port
+                    delete easyai_config.llama
+                    MenuCLI.displayMenu(CustomServer)
+                }
+            } else {
+                // Toggle OFF - remove token and model
+                delete easyai_config.deepinfra_token
+                delete easyai_config.deepinfra_model
+                MenuCLI.displayMenu(CustomServer)
+            }
+        }
+    },
+    {
+        name : `Threads | ${easyai_config.llama ? (easyai_config.llama.threads ? ColorText.magenta(easyai_config.llama.threads) : ColorText.green('MAX')) : ColorText.green('MAX')}`,
+        action : async () => {
+            let newthreads = await MenuCLI.ask('Qntd. Threads : ')
+            if(easyai_config.llama){
+                easyai_config.llama.threads = Number(newthreads)
+            } else {
+                easyai_config.llama = {}
+                easyai_config.llama.threads = Number(newthreads)
+            }
+            MenuCLI.displayMenu(CustomServer) 
+        }
+    },
+    {
+        name : `GPU | ${easyai_config.llama ? (easyai_config.llama.cuda ? ColorText.green('CUDA') : (easyai_config.llama.vulkan ? `${ColorText.orange('Vulkan')} (cmake only)` : ColorText.red('OFF')) ) : ColorText.red('OFF')}`,
+        action : () => {
+            if(easyai_config.llama){
+                if(easyai_config.llama.cuda){
+                    delete easyai_config.llama.cuda
+                    easyai_config.llama.vulkan = true
+                } else if(easyai_config.llama.vulkan){
+                    delete easyai_config.llama.vulkan
+                } else {
+                    easyai_config.llama.cuda = true
+                }
+            } else {
+                easyai_config.llama = {}
+                easyai_config.llama.cuda = true
+            }
+            MenuCLI.displayMenu(CustomServer)
+        }
     },
     {
         name : `Select Model ${easyai_config.llama ? (easyai_config.llama.llama_model ?  `| ${easyai_config.llama.llama_model}` : '') : ''}`,
         action : async  () => {
             MenuCLI.displayMenu(ModelsMenu,{props : {options : await models_options()}})
-                }
-        },
-        {
-            name: `📑 ${ColorText.orange('Save')}`,
-            action: async () => {
-              let name = await MenuCLI.ask('Save name? : ');
-              let save_result = await ServerSaves.Save(name, { pm2: withPM2, webgpt_port: webgpt_port, token: easyai_token, port: easyai_port, EasyAI_Config: easyai_config });
-              if (save_result === false) {
-                let result = await MenuCLI.displayMenuFromOptions(`⛔ Save already exists\nOverwrite?`, ['Overwrite', 'Cancel']);
-                if (result == 'Overwrite') {
-                  await ServerSaves.ForceSave(name, { pm2: withPM2, token: easyai_token, webgpt_port: webgpt_port, port: easyai_port, EasyAI_Config: easyai_config });
-                  MenuCLI.displayMenu(CustomServer, { props: { save_message: '✔️ Settings saved successfully!' } });
-                } else {
-                  MenuCLI.displayMenu(CustomServer);
-                }
-              } else {
-                MenuCLI.displayMenu(CustomServer, { props: { save_message: '✔️ Settings saved successfully!' } });
-              }
+        }
+    },
+    {
+        name: `📑 ${ColorText.orange('Save')}`,
+        action: async () => {
+          let name = await MenuCLI.ask('Save name? : ');
+          let save_result = await ServerSaves.Save(name, { 
+            pm2: withPM2, 
+            webgpt_port: webgpt_port, 
+            token: easyai_token, 
+            port: easyai_port, 
+            EasyAI_Config: easyai_config 
+          });
+          if (save_result === false) {
+            let result = await MenuCLI.displayMenuFromOptions(`⛔ Save already exists\nOverwrite?`, ['Overwrite', 'Cancel']);
+            if (result == 'Overwrite') {
+              await ServerSaves.ForceSave(name, { 
+                pm2: withPM2, 
+                token: easyai_token, 
+                webgpt_port: webgpt_port, 
+                port: easyai_port, 
+                EasyAI_Config: easyai_config 
+              });
+              MenuCLI.displayMenu(CustomServer, { props: { save_message: '✔️ Settings saved successfully!' } });
+            } else {
+              MenuCLI.displayMenu(CustomServer);
             }
-          },
+          } else {
+            MenuCLI.displayMenu(CustomServer, { props: { save_message: '✔️ Settings saved successfully!' } });
+          }
+        }
+    },
     {
         name : '← Back',
         action : () => {
             MenuCLI.displayMenu(ServerMenu)
-            }
         }
-     ]
-
+    }
+]
 })
 
 
