@@ -126,6 +126,34 @@ options : [
         }
     },
     {
+        name : (easyai_token) ? ColorText.green('Access Token') : ColorText.red('Access Token'),
+        action : async  () => {
+            if(easyai_token){
+                let response = await MenuCLI.ask('Edit Server Access Token', {options : ['New Token', 'Clear Token', 'Cancel']})
+                switch (response) {
+                    case 'New Token':
+                        let token =  await MenuCLI.ask('Set new token : ')
+                        easyai_token = token
+                        MenuCLI.displayMenu(CustomServer)
+                    break;
+
+                    case 'Clear Token':
+                        easyai_token = undefined
+                        MenuCLI.displayMenu(CustomServer)
+                    break;
+                
+                    default:
+                        MenuCLI.displayMenu(CustomServer)
+                    break;
+                }
+            } else {
+                let token =  await MenuCLI.ask('Set Server Access Token : ')
+                easyai_token = token
+                MenuCLI.displayMenu(CustomServer)
+            }
+        }
+    },
+    {
         name : `LlamaCPP PORT | ${easyai_config.llama ? (easyai_config.llama.server_port ? easyai_config.llama.server_port : '8080') : '8080'}`,
         action : async () => {
             let newport = await MenuCLI.ask('Digite a nova PORTA : ')
@@ -149,38 +177,91 @@ options : [
     {
         name : `PM2 | ${withPM2 ? ColorText.green('ON') : ColorText.red('OFF')}`,
         action : async () => {
-            if(withPM2){
-                withPM2 = false
-            } else {
-                withPM2 = true
-            }
+            withPM2 = !withPM2
             MenuCLI.displayMenu(CustomServer) 
         }
     },
     {
-        name : (easyai_token) ? ColorText.green('Access Token') : ColorText.red('Access Token'),
-        action : async  () => {
-            if(easyai_token){
-                let response = await MenuCLI.ask('Edit Token',{options : ['New Token','Clear Token','Cancel']})
-                switch (response) {
-                    case 'New Token':
-                        let token =  await MenuCLI.ask('Set Token : ')
-                        easyai_token = token
-                        MenuCLI.displayMenu(CustomServer)
-                    break;
-
-                    case 'Clear Token':
-                        easyai_token = undefined
-                        MenuCLI.displayMenu(CustomServer)
-                    break;
+        name : `🔌 EasyAI | ${easyai_config.server_url ? ColorText.green(`${easyai_config.server_url}:${easyai_config.server_port}`) : ColorText.red('Not Configured')}`,
+        action : async () => {
+            // Check if already configured
+            if(easyai_config.server_url) {
+                // Show edit/clear options
+                let response = await MenuCLI.ask('EasyAI Connection', {options : [
+                    'Edit Configuration',
+                    'Clear Configuration',
+                    'Cancel'
+                ]})
                 
+                switch(response) {
+                    case 'Edit Configuration':
+                        // Edit flow with current values as defaults
+                        let url = await MenuCLI.ask(`Server URL (default: ${easyai_config.server_url}) : `)
+                        if(!url) url = easyai_config.server_url
+                        
+                        let portStr = await MenuCLI.ask(`Server Port (default: ${easyai_config.server_port}) : `)
+                        let port = portStr ? Number(portStr) : easyai_config.server_port
+                        
+                        easyai_config.server_url = url
+                        easyai_config.server_port = port
+                        
+                        // Token handling for the EasyAI connection (server_token)
+                        let tokenPrompt = easyai_config.server_token ? 
+                            `Access Token (current: ${easyai_config.server_token}) - Enter to keep, type NEW value or "clear" to remove : ` :
+                            'Access Token (optional) : '
+                        
+                        let token = await MenuCLI.ask(tokenPrompt)
+                        if(token === 'clear') {
+                            delete easyai_config.server_token
+                        } else if(token) {
+                            easyai_config.server_token = token
+                        }
+                        // If empty string, keep existing token
+                        
+                        // Clear other configs
+                        delete easyai_config.openai_token
+                        delete easyai_config.openai_model
+                        delete easyai_config.deepinfra_token
+                        delete easyai_config.deepinfra_model
+                        delete easyai_config.llama
+                        
+                        MenuCLI.displayMenu(CustomServer)
+                        break
+                        
+                    case 'Clear Configuration':
+                        delete easyai_config.server_url
+                        delete easyai_config.server_port
+                        delete easyai_config.server_token
+                        MenuCLI.displayMenu(CustomServer)
+                        break
+                        
                     default:
                         MenuCLI.displayMenu(CustomServer)
-                    break;
+                        break
                 }
             } else {
-                let token =  await MenuCLI.ask('Set Token : ')
-                easyai_token = token
+                // New configuration flow with defaults
+                let url = await MenuCLI.ask('Server URL (default: localhost) : ')
+                if(!url) url = 'localhost'
+                
+                let portStr = await MenuCLI.ask('Server Port (default: 4000) : ')
+                let port = portStr ? Number(portStr) : 4000
+                
+                easyai_config.server_url = url
+                easyai_config.server_port = port
+                
+                let token = await MenuCLI.ask('Access Token (optional) : ')
+                if(token) {
+                    easyai_config.server_token = token
+                }
+                
+                // Clear other configs
+                delete easyai_config.openai_token
+                delete easyai_config.openai_model
+                delete easyai_config.deepinfra_token
+                delete easyai_config.deepinfra_model
+                delete easyai_config.llama
+                
                 MenuCLI.displayMenu(CustomServer)
             }
         }
@@ -211,6 +292,7 @@ options : [
                             delete easyai_config.deepinfra_model
                             delete easyai_config.server_url
                             delete easyai_config.server_port
+                            delete easyai_config.server_token
                             delete easyai_config.llama
                             MenuCLI.displayMenu(CustomServer)
                             break
@@ -231,6 +313,7 @@ options : [
                             delete easyai_config.deepinfra_model
                             delete easyai_config.server_url
                             delete easyai_config.server_port
+                            delete easyai_config.server_token
                             delete easyai_config.llama
                             MenuCLI.displayMenu(CustomServer)
                             break
@@ -246,6 +329,7 @@ options : [
                             delete easyai_config.deepinfra_model
                             delete easyai_config.server_url
                             delete easyai_config.server_port
+                            delete easyai_config.server_token
                             delete easyai_config.llama
                             MenuCLI.displayMenu(CustomServer)
                             break
@@ -278,6 +362,7 @@ options : [
                     delete easyai_config.deepinfra_model
                     delete easyai_config.server_url
                     delete easyai_config.server_port
+                    delete easyai_config.server_token
                     delete easyai_config.llama
                     MenuCLI.displayMenu(CustomServer)
                 }
@@ -315,6 +400,7 @@ options : [
                             delete easyai_config.openai_model
                             delete easyai_config.server_url
                             delete easyai_config.server_port
+                            delete easyai_config.server_token
                             delete easyai_config.llama
                             MenuCLI.displayMenu(CustomServer)
                             break
@@ -335,6 +421,7 @@ options : [
                             delete easyai_config.openai_model
                             delete easyai_config.server_url
                             delete easyai_config.server_port
+                            delete easyai_config.server_token
                             delete easyai_config.llama
                             MenuCLI.displayMenu(CustomServer)
                             break
@@ -350,6 +437,7 @@ options : [
                             delete easyai_config.openai_model
                             delete easyai_config.server_url
                             delete easyai_config.server_port
+                            delete easyai_config.server_token
                             delete easyai_config.llama
                             MenuCLI.displayMenu(CustomServer)
                             break
@@ -382,6 +470,7 @@ options : [
                     delete easyai_config.openai_model
                     delete easyai_config.server_url
                     delete easyai_config.server_port
+                    delete easyai_config.server_token
                     delete easyai_config.llama
                     MenuCLI.displayMenu(CustomServer)
                 }
@@ -438,7 +527,7 @@ options : [
           let save_result = await ServerSaves.Save(name, { 
             pm2: withPM2, 
             webgpt_port: webgpt_port, 
-            token: easyai_token, 
+            token: easyai_token,  // This saves the server access token
             port: easyai_port, 
             EasyAI_Config: easyai_config 
           });
@@ -447,7 +536,7 @@ options : [
             if (result == 'Overwrite') {
               await ServerSaves.ForceSave(name, { 
                 pm2: withPM2, 
-                token: easyai_token, 
+                token: easyai_token,  // This saves the server access token
                 webgpt_port: webgpt_port, 
                 port: easyai_port, 
                 EasyAI_Config: easyai_config 
