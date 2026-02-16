@@ -31,8 +31,8 @@ function consumeGenerateRoute({
   onData = () => {}
 }) {
   return new Promise(async (resolve) => {
-    const maxRetryTime = 30000; // Increased to 30 seconds total retry time
-    const retryDelay = 500; // Reduced to 500ms between retries for faster recovery
+    const maxRetryTime = 30000;
+    const retryDelay = 500;
     const startTime = Date.now();
     
     let lastError = null;
@@ -59,7 +59,6 @@ function consumeGenerateRoute({
     
     while (Date.now() - startTime < maxRetryTime) {
       try {
-        // Ensure only one request is active at a time
         activeRequest = attemptRequest({
           serverUrl,
           port,
@@ -72,56 +71,53 @@ function consumeGenerateRoute({
         const result = await activeRequest;
         cleanup();
         
-        // Add streamLog to the result
-        if (isStreaming) {
-          result.streamLog = streamLog;
+        // FIX: Handle both object and string results
+        let finalResult = result;
+        
+        // If result is a string, convert it to an object with full_text property
+        if (typeof result === 'string') {
+          finalResult = { full_text: result };
         }
         
-        // Success! Resolve with the result
-        resolve(result);
+        // Add streamLog to the result (only if it's an object)
+        if (isStreaming && typeof finalResult === 'object' && finalResult !== null) {
+          finalResult.streamLog = streamLog;
+        }
+        
+        resolve(finalResult);
         return;
         
       } catch (error) {
         cleanup();
         lastError = error;
         
-        // Track consecutive timeouts to detect pattern
         if (error.message?.includes('timeout') || error.code === 'ETIMEDOUT') {
           consecutiveTimeouts++;
         } else {
           consecutiveTimeouts = 0;
         }
         
-        // If it's not a connection error, don't retry (but still handle with error message)
         if (!isConnectionError(error)) {
           break;
         }
         
-        // If we've had many consecutive timeouts, the server might be starting up
-        // Keep retrying with small delays
-        
-        // Wait before retrying if we still have time
         if (Date.now() - startTime < maxRetryTime - retryDelay) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
     }
     
-    // If we get here, it means all retries failed
-    // Handle the error by streaming default message if streaming is enabled
-    
+    // Handle error case
     if (isStreaming) {
-      // Stream the default error message token by token and capture in streamLog
       await streamDefaultErrorMessage(wrappedOnData, config);
       
-      // Resolve with the error object AND the streamLog after streaming completes
+      // FIX: Return a proper object even in error case
       resolve({ 
         error: lastError?.message || "server offline",
         full_text: DEFAULT_ERROR_TEXT,
-        streamLog: streamLog  // Include the captured stream log
+        streamLog: streamLog
       });
     } else {
-      // For non-streaming, just return the error object
       resolve({ 
         error: lastError?.message || "server offline" 
       });
@@ -136,15 +132,12 @@ async function streamDefaultErrorMessage(onData, config) {
     
     function streamNext() {
       if (i < DEFAULT_ERROR_TOKENS.length) {
-        // Simulate streaming by calling onData with each token
         onData({
           stream: {
             content: DEFAULT_ERROR_TOKENS[i]
           }
         });
         i++;
-        
-        // Use a small delay between tokens to simulate real streaming
         setTimeout(streamNext, 45);
       } else {
         resolve();
@@ -217,7 +210,7 @@ function attemptRequest({
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(postData)
       },
-      timeout: 10000 // Reduced to 10 second timeout for faster failure detection
+      timeout: 10000
     };
 
     const req = protocol.request(options, (res) => {
@@ -228,15 +221,20 @@ function attemptRequest({
         const chunkData = chunk.toString();
         try {
           const parsedChunk = JSON.parse(chunkData);
-          if(!config.stream || parsedChunk.generation_settings){
+          
+          // FIX: Handle the streaming logic better
+          if (parsedChunk.stream && config.stream) {
+            // This is a streaming token - pass it to onData
+            onData(parsedChunk);
+          } else if (!config.stream || parsedChunk.generation_settings) {
+            // This is the final result (non-streaming or metadata)
             if (!hasResolved) {
               hasResolved = true;
               resolve(parsedChunk);
             }
-          } else {
-            onData(parsedChunk);
           }
         } catch (error) {
+          // If it's not JSON and streaming is enabled, might be raw content
           finalData += chunkData;
         }
       });
@@ -244,8 +242,10 @@ function attemptRequest({
       res.on('end', () => {
         if (!hasResolved) {
           try {
+            // Try to parse as JSON first
             resolve(JSON.parse(finalData));
           } catch (error) {
+            // If it's not JSON, return as string
             resolve(finalData);
           }
         }
@@ -267,15 +267,3 @@ function attemptRequest({
 }
 
 export default consumeGenerateRoute;
-
-/*
-let final_response = await consumeGenerateRoute({
-  serverUrl : 'localhost',
-  port : 6000,
-  prompt : 'once upon a time ',
-  config : {stream : true},
-  onData : (t) => {console.log(t)}
-})
-
-console.log(final_response)
-*/
