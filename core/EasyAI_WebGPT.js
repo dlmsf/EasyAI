@@ -5,7 +5,6 @@ import { exec } from 'child_process';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { writeFileSync, existsSync } from 'fs';
 import EasyAI from '../EasyAI.js';
-import ChatPrompt from './MenuCLI/Sandbox/ChatPrompt.js';
 import Chat from './ChatModule/Chat.js';
 import PM2 from './useful/PM2.js';
 import ChatView from './ChatView.js'
@@ -34,9 +33,16 @@ class EasyAI_WebGPT {
     this.handle_port = config.handle_port || true
     this.port = config.port || 3000;
     this.Chat = new Chat();
+    
+    // Update: Store messages in the format Chat() expects
+    this.messages = []; // We'll use this alongside Chat.Historical for compatibility
+    
     this.easyai_url = config.easyai_url || ((config.openai_token) ? undefined : 'localhost');
     this.easyai_port = config.easyai_port || 4000;
     this.AI = new EasyAI({ server_url: this.easyai_url, server_port: this.easyai_port, openai_token: config.openai_token, openai_model: config.openai_model });
+
+    // Optional: Set system message type
+    this.systemType = config.systemType || 'FRIENDLY';
 
     this.server = http.createServer(async (req, res) => {
       if (req.method === 'GET' && req.url === '/') { 
@@ -82,11 +88,16 @@ class EasyAI_WebGPT {
         req.on('end', async () => {
           try {
             const { message } = JSON.parse(body);
+            
+            // Add user message to both storage formats (for compatibility)
             this.Chat.NewMessage('User: ', message);
-            let historical_prompt = '';
-            this.Chat.Historical.forEach(e => {
-              historical_prompt += `${e.Sender}${e.Content} | `;
-            });
+            this.messages.push({ role: 'user', content: message });
+
+            // Build messages array for Chat() method
+            const messagesForAI = this.messages.map(msg => ({
+              role: msg.role,
+              content: msg.content
+            }));
 
             res.writeHead(200, {
               'Content-Type': 'text/event-stream',
@@ -96,20 +107,53 @@ class EasyAI_WebGPT {
               'Access-Control-Allow-Headers': 'Cache-Control'
             });
 
-            const result = await this.AI.Generate(`${ChatPrompt}${historical_prompt}AI:`, {
-              tokenCallback: async (token) => {
-                try {
-                  // Replace newlines with a special marker for client-side processing
-                  const processedToken = token.stream.content.replace(/\n/g, '\\n');
-                  res.write(`data: ${JSON.stringify({content: processedToken})}\n\n`);
-                } catch (error) {
-                  console.error('Error writing token:', error);
-                }
-              },
-              stop: ['|']
-            });
+            // Use Chat() method instead of Generate()
+            // In the /message endpoint handler
+let fullResponse = ''; // Track what we've already sent
 
+const result = await this.AI.Chat(messagesForAI, {
+  tokenCallback: async (token) => {
+    try {
+      // Extract content
+      let content = '';
+      
+      if (typeof token === 'string') {
+        content = token;
+      } else if (token?.stream?.content) {
+        content = token.stream.content;
+      } else if (token?.content) {
+        content = token.content;
+      } else {
+        return; // Skip unknown formats
+      }
+      
+      // Check if this is new content (not already sent)
+      if (content && !fullResponse.includes(content)) {
+        fullResponse += content;
+        
+        // Replace newlines with a special marker for client-side processing
+        const processedToken = String(content).replace(/\n/g, '\\n');
+        res.write(`data: ${JSON.stringify({content: processedToken})}\n\n`);
+      }
+    } catch (error) {
+      console.error('Error writing token:', error);
+    }
+  },
+  stream: true,
+  systemType: this.systemType
+});
+
+// After streaming completes, store the final message
+// Use result.full_text which should contain the complete response
+if (result && result.full_text) {
+  this.Chat.NewMessage('AI: ', result.full_text);
+  this.messages.push({ role: 'assistant', content: result.full_text });
+}
+
+            // Add AI response to both storage formats
             this.Chat.NewMessage('AI: ', result.full_text);
+            this.messages.push({ role: 'assistant', content: result.full_text });
+            
             res.write('data: [DONE]\n\n');
             res.end();
           } catch (error) {
@@ -120,6 +164,7 @@ class EasyAI_WebGPT {
         });
       } else if (req.method === 'POST' && req.url === '/reset') {
         this.Chat.Reset();
+        this.messages = []; // Also reset the messages array
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ status: 'reset' }));
       } else {
@@ -157,8 +202,6 @@ const config = ${JSON.stringify(config)};
 const server = new EasyAI.WebGPT(config);
 server.start()`
     writeFileSync(serverScriptPath, fileContent);
-
-    //if (!(await PM2.Check())) await PM2.Install();
 
     try {
       await execAsync(`pm2 start ${serverScriptPath}`);
