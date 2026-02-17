@@ -13,6 +13,7 @@ import generateUniqueCode from "./core/util/generateUniqueCode.js";
 import ConfigManager from "./core/ConfigManager.js";
 import {exec} from 'child_process'
 import DeepInfra from './core/DeepInfra.js'
+import NewChatPrompt from "./core/util/NewChatPrompt.js";
 
 
 
@@ -514,29 +515,40 @@ async Generate(prompt = 'Once upon a time', config = {openai : false,deepinfra :
 
     }
 
-async Chat(messages = [{role : 'user',content : 'Who won the world series in 2020?'}],config = {openai_avoidchat : false,openai : false,logerror : false, stream: true, retryLimit: 420000,tokenCallback : () => {}}){
-
-  
-        if((config.openai || this.OpenAI) && !config.openai_avoidchat){
-            delete config.openai
-            return await this.OpenAI.Chat(messages,config)
-        } else {
-            let final_prompt = ChatPrompt
-
-            messages.forEach(e => {
-                let ROLE
-                if(e.role == 'user'){
-                    ROLE = 'User: '
-                } else if(e.role == 'assistant'){
-                    ROLE = 'AI: '
-                }
-                final_prompt = `${final_prompt}${ROLE}${e.content} | `
-               })
-            
-               config.stop = ['|']
-            return await this.Generate(`${final_prompt}AI: `,config)
+    async Chat(messages = [
+        {role: 'user', content: 'Who won the world series in 2020?'}
+    ], config = {
+        openai_avoidchat: false,
+        openai: false,
+        logerror: false,
+        stream: true,
+        retryLimit: 420000,
+        tokenCallback: () => {},
+        systemMessage: null, // Will use default if null
+        systemType: null     // Or use a predefined type: 'CONCISE', 'DETAILED', etc.
+    }) {
+        // Handle OpenAI
+        if ((config.openai || this.OpenAI) && !config.openai_avoidchat) {
+            delete config.openai;
+            return await this.OpenAI.Chat(messages, config);
+        }
+    
+        // Determine which system message to use
+        let systemMessage = config.systemMessage;
+        
+        if (!systemMessage && config.systemType) {
+            // Use predefined system message type
+            systemMessage = NewChatPrompt.SYSTEM_TYPES[config.systemType];
         }
         
+        // Build prompt with system message (default will be used if both are null)
+        const final_prompt = NewChatPrompt.build(messages, systemMessage);
+        
+        // Generate
+        return await this.Generate(final_prompt, {
+            ...config,
+            stop: ['<|im_end|>']
+        });
     }
 
 async PrintGenerate(prompt){
