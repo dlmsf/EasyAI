@@ -2,7 +2,6 @@ import EasyAI from '../../../EasyAI.js'
 import StartMenu from '../StartMenu.js'
 import MenuCLI from '../MenuCLI.js'
 import TerminalChat from '../../TerminalChat.js'
-import ChatPrompt from './ChatPrompt.js'
 import readline from 'readline';
 import Chat from '../../ChatModule/Chat.js'
 import TerminalGenerate from '../../TerminalGenerate.js'
@@ -48,60 +47,63 @@ options : [
         }})
     }
     },
-    {
+    // Updated Chat action in SandboxMenu
+{
     name : ColorText.brightBlue('Chat'),
     action : async () => {
         MenuCLI.close()
         console.clear()
         let ai = new EasyAI(props)
         const chat = new Chat()
-        new TerminalChat(async (input,displayToken) => {
-            chat.NewMessage('User: ',input)
-            let historical_prompt = ''
-            chat.Historical.forEach(e => {
-             historical_prompt = `${historical_prompt}${e.Sender}${e.Content} | `
+        
+        new TerminalChat(async (input, displayToken) => {
+            // Add user message to chat history
+            chat.NewMessage('user', input)
+            
+            // Convert chat history to messages array format
+            const messages = chat.Historical.map(msg => ({
+                role: msg.Sender === 'User: ' ? 'user' : 'assistant',
+                content: msg.Content
+            }))
+            
+            // Always use Chat() method - no more conditional logic
+            const result = await ai.Chat(messages, {
+                tokenCallback: async (token) => {
+                    // Handle token in various formats
+                    let content = ''
+                    if (typeof token === 'string') {
+                        content = token
+                    } else if (token?.stream?.content) {
+                        content = token.stream.content
+                    } else if (token?.content) {
+                        content = token.content
+                    } else {
+                        return // Skip unknown formats
+                    }
+                    await displayToken(content)
+                },
+                stream: true,
+                // Let the AI decide when to stop - no stop tokens needed
+                systemMessage: props.systemMessage, // Optional: custom system message
+                systemType: props.systemType // Optional: CONCISE, DETAILED, etc.
             })
             
-            let result
-            
-            if(props.openai_token && !props.deepinfra_token) {
-                // Use OpenAI chat if only OpenAI is configured
-                let messages = []
-                chat.Historical.forEach(e => {
-                    messages.push({
-                        role: e.Sender === 'User: ' ? 'user' : 'assistant',
-                        content: e.Content
-                    })
-                })
-                result = await ai.Chat(messages, {
-                    tokenCallback: async (token) => {
-                        await displayToken(token.stream ? token.stream.content : token)
-                    }
-                })
-            } else {
-                // Use Generate with ChatPrompt for DeepInfra or server mode
-                result = await ai.Generate(`${ChatPrompt}${historical_prompt}AI:`, {
-                    tokenCallback : async (token) => {
-                        await displayToken(token.stream.content)
-                    },
-                    stop : ['|'],
-                    ...(props.deepinfra_token ? {deepinfra: true} : {}),
-                    ...(props.openai_token ? {openai: true} : {})
-                })
+            // Add AI response to chat history
+            if (result && result.full_text) {
+                chat.NewMessage('assistant', result.full_text)
             }
             
-            if(result && result.full_text) {
-                chat.NewMessage('AI: ', result.full_text)
+        }, {
+            exitFunction: async () => {
+                MenuCLI.rl = readline.createInterface({
+                    input: process.stdin,
+                    output: process.stdout
+                });
+                await MenuCLI.displayMenu(SandboxMenu, { props: props })
             }
-        },{exitFunction : async () => {
-            MenuCLI.rl = readline.createInterface({
-                input: process.stdin,
-                output: process.stdout
-              });
-            await MenuCLI.displayMenu(SandboxMenu,{props : props})
-        }})
-        }
-    },
+        })
+    }
+},
     {
     name : ColorText.blue('Coder'),
     action : async () => {
