@@ -371,27 +371,10 @@ class Dict {
                         try {
                             const jsonData = JSON.parse(fileContent);
                             
-                            // Handle different JSON structures
-                            if (Array.isArray(jsonData)) {
-                                // If it's an array, treat each item as a token
-                                items = jsonData;
-                                fileItemCount = items.length;
-                            } else if (typeof jsonData === 'object' && jsonData !== null) {
-                                // If it's an object, collect keys and string values
-                                const entries = Object.entries(jsonData);
-                                fileItemCount = entries.length;
-                                
-                                // Process in batches to avoid memory issues
-                                for (const [key, value] of entries) {
-                                    // Add the key
-                                    items.push(key);
-                                    
-                                    // Add value if it's a string
-                                    if (typeof value === 'string') {
-                                        items.push(value);
-                                    }
-                                }
-                            }
+                            // Extract all text content from JSON structure
+                            items = this.#extractTextFromJson(jsonData);
+                            fileItemCount = items.length;
+                            
                         } catch (jsonError) {
                             console.log(`  ⚠️  Invalid JSON in ${filePath}, treating as plain text`);
                             fileType = 'text';
@@ -405,20 +388,20 @@ class Dict {
                     }
                     
                     console.log(`\n📄 Processing ${fileIndex + 1}/${paths.length}: ${path.basename(filePath)} (${fileType})`);
-                    console.log(`   Items to process: ${fileItemCount.toLocaleString()}`);
+                    console.log(`   Text segments to process: ${fileItemCount.toLocaleString()}`);
                     
                 } catch (readError) {
                     console.error(`  ❌ Error reading file ${filePath}: ${readError.message}`);
                     continue;
                 }
                 
-                // Process each item in the file
+                // Process each text segment
                 for (let itemIndex = 0; itemIndex < items.length; itemIndex++) {
                     const item = items[itemIndex];
                     
                     let start = performance.now();
                     
-                    // Tokenize the content
+                    // Tokenize the text content
                     const tokenized = tokenizeText(item);
                     
                     // Add all tokens to the unique words Set
@@ -430,14 +413,13 @@ class Dict {
                         
                         // Skip empty tokens
                         if (token && token.length > 0) {
-                            // Store original token including punctuation
+                            // Store original token
                             if (!uniqueWords.has(token)) {
                                 uniqueWords.add(token);
                                 tokensAdded++;
                             }
                             
-                            // For tokens that contain internal punctuation or hyphens,
-                            // only process if it's a reasonable length to avoid excessive splitting
+                            // Handle compound words with hyphens, slashes, underscores
                             if (token.length > 1 && (token.includes('-') || token.includes('/') || token.includes('\\') || token.includes('_'))) {
                                 const subParts = token.split(/[\/\\\-_]+/);
                                 const subPartsLength = subParts.length;
@@ -450,7 +432,7 @@ class Dict {
                                 }
                             }
                             
-                            // For compound words with apostrophes (contractions)
+                            // Handle contractions and apostrophes
                             if (token.length > 1 && token.includes("'")) {
                                 const apostropheParts = token.split("'");
                                 const apostrophePartsLength = apostropheParts.length;
@@ -472,9 +454,9 @@ class Dict {
                     const time = Number((finish - start).toFixed(2));
                     const avgTime = average(runtimes).toFixed(2);
                     
-                    // Update progress every 100 items or on last item to reduce I/O
-                    if (itemIndex % 100 === 0 || itemIndex === items.length - 1) {
-                        const globalProgress = `${fileIndex + 1}/${paths.length} files, ${(itemIndex + 1).toLocaleString()}/${fileItemCount.toLocaleString()} items`;
+                    // Update progress every 10 items to reduce I/O
+                    if (itemIndex % 10 === 0 || itemIndex === items.length - 1) {
+                        const globalProgress = `${fileIndex + 1}/${paths.length} files, ${(itemIndex + 1).toLocaleString()}/${fileItemCount.toLocaleString()} segments`;
                         
                         // Truncate item preview for display
                         let itemPreview = '';
@@ -489,12 +471,12 @@ class Dict {
                             console.log(`${globalProgress} | time avg: ${avgTime}ms | Added: ${tokensAdded} | Total: ${currentUniqueCount.toLocaleString()} | ${(time > avgTime) ? ColorText.red(time) : ColorText.green(time)}ms`);
                         } else {
                             // Overlay mode
-                            process.stdout.write(`\r\x1b[K${globalProgress} | time avg: ${avgTime}ms | "${itemPreview}" | Unique: ${currentUniqueCount.toLocaleString()} | ${time}ms`);
+                            process.stdout.write(`\r\x1b[K${globalProgress} | time avg: ${avgTime}ms | "${itemPreview.replace(/\n/g, ' ')}" | Unique: ${currentUniqueCount.toLocaleString()} | ${time}ms`);
                         }
                     }
                     
                     // Allow event loop to process occasionally
-                    if (itemIndex % 1000 === 0) {
+                    if (itemIndex % 100 === 0) {
                         await new Promise(resolve => setTimeout(resolve, 0));
                     }
                 }
@@ -543,11 +525,10 @@ class Dict {
             console.log('\n🔤 TOKEN STATISTICS:');
             console.log('-'.repeat(70));
             
-            // Count tokens by type (alphabetic, numeric, punctuation, mixed)
+            // Count tokens by type
             let alphabetic = 0, numeric = 0, punctuation = 0, mixed = 0;
             const sampleSize = Math.min(100000, uniqueWordsArray.length);
             
-            // Sample for performance with large arrays
             for (let i = 0; i < sampleSize; i++) {
                 const token = uniqueWordsArray[i];
                 if (/^[a-zA-Z]+$/.test(token)) {
@@ -628,12 +609,12 @@ class Dict {
                 words: uniqueWordsArray
             };
             
-            await fs.writeFile(outputPath, JSON.stringify(enhancedOutput));
+            await fs.writeFile(outputPath, JSON.stringify(enhancedOutput, null, 2));
             console.log(`  ✅ Saved to: ${outputPath}`);
             
             // Also save a simple array version
             const simpleOutputPath = outputPath.replace('.json', '.simple.json');
-            await fs.writeFile(simpleOutputPath, JSON.stringify(uniqueWordsArray));
+            await fs.writeFile(simpleOutputPath, JSON.stringify(uniqueWordsArray, null, 2));
             console.log(`  ✅ Simple array version saved to: ${simpleOutputPath}`);
             
             // Save a compressed version for very large files
@@ -644,7 +625,7 @@ class Dict {
                     preview: uniqueWordsArray.slice(0, 1000),
                     stats: enhancedOutput.metadata.tokenStatistics
                 };
-                await fs.writeFile(compressedOutputPath, JSON.stringify(compressed));
+                await fs.writeFile(compressedOutputPath, JSON.stringify(compressed, null, 2));
                 console.log(`  ✅ Compressed preview saved to: ${compressedOutputPath}`);
             }
             
@@ -654,6 +635,32 @@ class Dict {
             console.error('❌ Error processing files:', error.message);
             console.error(error.stack);
         }
+    }
+    
+    // Helper method to extract all text content from JSON structure recursively
+    static #extractTextFromJson(data, texts = []) {
+        if (data === null || data === undefined) {
+            return texts;
+        }
+        
+        if (typeof data === 'string') {
+            // If it's a string, add it directly
+            texts.push(data);
+        } else if (Array.isArray(data)) {
+            // If it's an array, process each element
+            for (let i = 0; i < data.length; i++) {
+                this.#extractTextFromJson(data[i], texts);
+            }
+        } else if (typeof data === 'object') {
+            // If it's an object, process all values
+            const values = Object.values(data);
+            for (let i = 0; i < values.length; i++) {
+                this.#extractTextFromJson(values[i], texts);
+            }
+        }
+        // Ignore numbers, booleans, etc. as they're not text
+        
+        return texts;
     }
 
     static async Level3(config = {words_path: '', inlineMode: false, output_path: './word_types.json'}) {
@@ -1177,7 +1184,7 @@ Dict.Level1({
 */
 
 
-//Dict.Level2({paths : ['./dictionary.json','./offmodels/minidictionary.json']})
+//Dict.Level2({paths : ['./dictionary.json','./offmodels/largedictionary.json','./english_transcripts.json']})
 //Dict.Level3({words_path : 'unique_words.simple.json',inlineMode : true})
 
 
