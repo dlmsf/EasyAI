@@ -285,10 +285,10 @@ class Dict {
                 
                 if (inlineMode) {
                     // Multi-line mode - each entry on a new line with colors
-                    console.log(`${progress} | ${v.key} : ${percentage} | ${(time > avgTime) ? ColorText.red(time) : ColorText.green(time)} ms | time avg : ${avgTime}`);
+                    console.log(`${progress} | time avg : ${avgTime} | ${v.key} : ${percentage} | ${(time > avgTime) ? ColorText.red(time) : ColorText.green(time)} ms`);
                 } else {
                     // Overlay mode (default) - updates the same line
-                    process.stdout.write(`\r\x1b[K${progress} | ${v.key} : ${percentage} | ${time} ms | time avg : ${avgTime}`);
+                    process.stdout.write(`\r\x1b[K${progress} | time avg : ${avgTime} | ${v.key} : ${percentage} | ${time} ms`);
                 }
                 
                 // Allow event loop to process keypresses
@@ -361,12 +361,14 @@ class Dict {
 // });
 
 // 6. Mixed filters with OR mode
+
 /*
 Dict.Level1({ 
     dict_path: './dictionary.json',
     inlineMode: true
 });
 */
+
 
 
 // 7. Simple ends_with (backward compatibility)
