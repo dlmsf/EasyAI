@@ -34,12 +34,30 @@ class EasyAI_WebGPT {
     this.port = config.port || 3000;
     this.Chat = new Chat();
     
-    // Update: Store messages in the format Chat() expects
+    // Store messages in the format Chat() expects
     this.messages = []; // We'll use this alongside Chat.Historical for compatibility
     
-    this.easyai_url = config.easyai_url || ((config.openai_token) ? undefined : 'localhost');
-    this.easyai_port = config.easyai_port || 4000;
-    this.AI = new EasyAI({ server_url: this.easyai_url, server_port: this.easyai_port, openai_token: config.openai_token, openai_model: config.openai_model });
+    // Build the config for EasyAI based on what's provided
+    const easyAIConfig = {};
+    
+    // If we have OpenAI token, use that (this works in Chat/Generate mode)
+    if (config.openai_token) {
+      easyAIConfig.openai_token = config.openai_token;
+      easyAIConfig.openai_model = config.openai_model;
+    }
+    // If we have DeepInfra token, use that (this works in Chat/Generate mode)
+    else if (config.deepinfra_token) {
+      easyAIConfig.deepinfra_token = config.deepinfra_token;
+      easyAIConfig.deepinfra_model = config.deepinfra_model;
+    }
+    // If we have server URL, use that (this works in Chat/Generate mode)
+    else if (config.easyai_url) {
+      easyAIConfig.server_url = config.easyai_url;
+      easyAIConfig.server_port = config.easyai_port || 4000;
+    }
+    
+    console.log('Creating EasyAI with config:', easyAIConfig);
+    this.AI = new EasyAI(easyAIConfig);
 
     // Optional: Set system message type
     this.systemType = config.systemType || 'FRIENDLY';
@@ -88,6 +106,7 @@ class EasyAI_WebGPT {
         req.on('end', async () => {
           try {
             const { message } = JSON.parse(body);
+            console.log('Received message:', message);
             
             // Add user message to both storage formats (for compatibility)
             this.Chat.NewMessage('User: ', message);
@@ -98,6 +117,8 @@ class EasyAI_WebGPT {
               role: msg.role,
               content: msg.content
             }));
+            
+            console.log('Messages for AI:', JSON.stringify(messagesForAI));
 
             res.writeHead(200, {
               'Content-Type': 'text/event-stream',
@@ -107,54 +128,75 @@ class EasyAI_WebGPT {
               'Access-Control-Allow-Headers': 'Cache-Control'
             });
 
-            // Use Chat() method instead of Generate()
-            // In the /message endpoint handler
-let fullResponse = ''; // Track what we've already sent
+            // Store the complete response as we build it
+            let fullResponse = '';
+            let tokenCount = 0;
 
-const result = await this.AI.Chat(messagesForAI, {
-  tokenCallback: async (token) => {
-    try {
-      // Extract content
-      let content = '';
-      
-      if (typeof token === 'string') {
-        content = token;
-      } else if (token?.stream?.content) {
-        content = token.stream.content;
-      } else if (token?.content) {
-        content = token.content;
-      } else {
-        return; // Skip unknown formats
-      }
-      
-      // Check if this is new content (not already sent)
-      if (content && !fullResponse.includes(content)) {
-        fullResponse += content;
-        
-        // Replace newlines with a special marker for client-side processing
-        const processedToken = String(content).replace(/\n/g, '\\n');
-        res.write(`data: ${JSON.stringify({content: processedToken})}\n\n`);
-      }
-    } catch (error) {
-      console.error('Error writing token:', error);
-    }
-  },
-  stream: true,
-  systemType: this.systemType
-});
+            console.log('Starting AI.Chat...');
+            
+            // Determine if we need to pass any special flags based on what we're using
+            const chatConfig = {
+              tokenCallback: async (token) => {
+                try {
+                  // Extract content
+                  let content = '';
+                  
+                  if (typeof token === 'string') {
+                    content = token;
+                  } else if (token?.stream?.content) {
+                    content = token.stream.content;
+                  } else if (token?.content) {
+                    content = token.content;
+                  } else {
+                    console.log('Unknown token format:', token);
+                    return; // Skip unknown formats
+                  }
+                  
+                  if (content) {
+                    tokenCount++;
+                    // Accumulate for history
+                    fullResponse += content;
+                    
+                    console.log(`Token ${tokenCount}: "${content.substring(0, 20)}..."`);
+                    
+                    // Send token immediately to frontend
+                    res.write(`data: ${JSON.stringify({content: content})}\n\n`);
+                  }
+                } catch (error) {
+                  console.error('Error in tokenCallback:', error);
+                }
+              },
+              stream: true,
+              systemType: this.systemType
+            };
+            
+            // Add openai/deepinfra flags if needed
+            if (config.openai_token) {
+              chatConfig.openai = true;
+            } else if (config.deepinfra_token) {
+              chatConfig.deepinfra = true;
+            }
+            
+            const result = await this.AI.Chat(messagesForAI, chatConfig);
 
-// After streaming completes, store the final message
-// Use result.full_text which should contain the complete response
-if (result && result.full_text) {
-  this.Chat.NewMessage('AI: ', result.full_text);
-  this.messages.push({ role: 'assistant', content: result.full_text });
-}
+            console.log(`AI.Chat completed. Total tokens: ${tokenCount}`);
+            console.log('Result object:', result);
 
-            // Add AI response to both storage formats
-            this.Chat.NewMessage('AI: ', result.full_text);
-            this.messages.push({ role: 'assistant', content: result.full_text });
+            // After streaming completes, store ONLY the clean text response
+            // Use fullResponse if we accumulated tokens, otherwise fallback to result.full_text
+            const finalResponse = fullResponse || (result?.full_text || '');
+            
+            if (finalResponse) {
+              console.log('Storing final response:', finalResponse.substring(0, 50) + '...');
+              // Add to both storage formats
+              this.Chat.NewMessage('AI: ', finalResponse);
+              this.messages.push({ role: 'assistant', content: finalResponse });
+            } else {
+              console.log('No final response to store!');
+            }
             
             res.write('data: [DONE]\n\n');
+            console.log('Stream completed');
             res.end();
           } catch (error) {
             console.error('Error processing message:', error);
@@ -186,7 +228,7 @@ if (result && result.full_text) {
         }
     }
     return '127.0.0.1';
-}
+  }
 
   static async PM2(config) {
     const timestamp = Date.now();
@@ -221,9 +263,7 @@ server.start()`
         const primaryIP = this.getPrimaryIP();
         console.log(`EasyAI server is running on http://${primaryIP}:${this.port}`);
     });
+  }
 }
-
-}
-
 
 export default EasyAI_WebGPT;
