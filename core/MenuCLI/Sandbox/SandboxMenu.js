@@ -130,6 +130,7 @@ options : [
                     port : port,
                     easyai_url : props.server_url,
                     easyai_port : props.server_port,
+                    easyai_token : props.server_token,
                     openai_token : props.openai_token,
                     openai_model : props.openai_model,
                     deepinfra_token : props.deepinfra_token,

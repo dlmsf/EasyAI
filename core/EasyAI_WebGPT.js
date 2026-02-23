@@ -34,27 +34,42 @@ class EasyAI_WebGPT {
     this.port = config.port || 3000;
     this.Chat = new Chat();
     
+    // Store the token for later use in requests
+    this.easyai_token = config.easyai_token || null;
+    
     // Store messages in the format Chat() expects
     this.messages = []; // We'll use this alongside Chat.Historical for compatibility
     
     // Build the config for EasyAI based on what's provided
     const easyAIConfig = {};
     
-    // If we have OpenAI token, use that (this works in Chat/Generate mode)
+    // If we have OpenAI token, use that
     if (config.openai_token) {
       easyAIConfig.openai_token = config.openai_token;
       easyAIConfig.openai_model = config.openai_model;
     }
-    // If we have DeepInfra token, use that (this works in Chat/Generate mode)
+    // If we have DeepInfra token, use that
     else if (config.deepinfra_token) {
       easyAIConfig.deepinfra_token = config.deepinfra_token;
       easyAIConfig.deepinfra_model = config.deepinfra_model;
     }
-    // If we have server URL, use that (this works in Chat/Generate mode)
-    else if (config.easyai_url) {
+    
+    // If we have server URL, use that (with token if provided)
+    if (config.easyai_url) {
       easyAIConfig.server_url = config.easyai_url;
       easyAIConfig.server_port = config.easyai_port || 4000;
+      // IMPORTANT: Pass the token to the EasyAI instance
+      if (this.easyai_token) {
+        easyAIConfig.server_token = this.easyai_token;
+      }
     }
+    
+    console.log('EasyAI WebGPT config:', { 
+      hasOpenAI: !!config.openai_token, 
+      hasDeepInfra: !!config.deepinfra_token,
+      hasServerURL: !!config.easyai_url,
+      hasToken: !!this.easyai_token
+    });
     
     this.AI = new EasyAI(easyAIConfig);
 
@@ -62,6 +77,23 @@ class EasyAI_WebGPT {
     this.systemType = config.systemType || null;
 
     this.server = http.createServer(async (req, res) => {
+      // Add CORS headers for all responses
+      const setCORSHeaders = (res) => {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Cache-Control');
+      };
+
+      // Handle preflight requests
+      if (req.method === 'OPTIONS') {
+        setCORSHeaders(res);
+        res.writeHead(200);
+        res.end();
+        return;
+      }
+
+      setCORSHeaders(res);
+
       if (req.method === 'GET' && req.url === '/') { 
         try {
           // 1. Create temporary file with ChatView.Html() content
@@ -119,9 +151,7 @@ class EasyAI_WebGPT {
             res.writeHead(200, {
               'Content-Type': 'text/event-stream',
               'Cache-Control': 'no-cache',
-              'Connection': 'keep-alive',
-              'Access-Control-Allow-Origin': '*',
-              'Access-Control-Allow-Headers': 'Cache-Control'
+              'Connection': 'keep-alive'
             });
 
             // Store the complete response as we build it
@@ -159,17 +189,18 @@ class EasyAI_WebGPT {
               systemType: this.systemType
             };
             
-            // Add openai/deepinfra flags if needed
+            // Add openai/deepinfra flags only if those tokens exist
             if (config.openai_token) {
               chatConfig.openai = true;
             } else if (config.deepinfra_token) {
               chatConfig.deepinfra = true;
             }
             
+            console.log('Calling AI.Chat with messages:', messagesForAI.length);
+            
             const result = await this.AI.Chat(messagesForAI, chatConfig);
 
             // After streaming completes, store ONLY the clean text response
-            // Use fullResponse if we accumulated tokens, otherwise fallback to result.full_text
             const finalResponse = fullResponse || (result?.full_text || '');
             
             if (finalResponse) {
@@ -242,7 +273,10 @@ server.start()`
     }
     this.server.listen(this.port, () => {
         const primaryIP = this.getPrimaryIP();
-        console.log(`EasyAI server is running on http://${primaryIP}:${this.port}`);
+        console.log(`EasyAI WebGPT server is running on http://${primaryIP}:${this.port}`);
+        if (this.easyai_token) {
+          console.log(`🔑 Using token: ${this.easyai_token.substring(0, 8)}...`);
+        }
     });
   }
 }
