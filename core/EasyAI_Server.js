@@ -114,19 +114,27 @@ class EasyAI_Server {
      * @returns {boolean} - True if token is valid
      */
     isValidToken(tokenToValidate) {
-        if (!tokenToValidate) return false;
-        if (this.tokenMap.size === 0) return true; // No token required
+        // If no tokens are configured, accept any request (with or without token)
+        if (this.tokenMap.size === 0) {
+            return true;
+        }
         
-        // O(1) lookup in Map
+        // If token is required but none provided, reject
+        if (!tokenToValidate) {
+            return false;
+        }
+        
+        // Check if token exists in map
         const tokenId = this.tokenMap.get(tokenToValidate);
         if (tokenId) {
-            // Update last used timestamp asynchronously (don't await)
+            // Update last used timestamp asynchronously
             const token = this.tokenStore.get(tokenId);
             if (token) {
                 token.lastUsed = new Date().toISOString();
             }
             return true;
         }
+        
         return false;
     }
 
@@ -141,11 +149,13 @@ class EasyAI_Server {
         const authHeader = req.headers.authorization;
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const bearerToken = authHeader.substring(7);
-            if (bearerToken) return bearerToken;
+            if (bearerToken && bearerToken.trim() !== '') {
+                return bearerToken;
+            }
         }
         
         // Fallback to body token (backward compatibility)
-        if (body && body.token) {
+        if (body && body.token && typeof body.token === 'string' && body.token.trim() !== '') {
             return body.token;
         }
         
