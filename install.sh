@@ -17,6 +17,7 @@ LOCAL_DIR_MODE=false
 PRESERVE_DATA=true
 BUILD_MODE=false
 BUILD_COMMIT=""
+ONLINE_MODE=false          # New flag for forcing online installation
 
 # =============================================================================
 # SCRIPT HOOKS CONFIGURATION - Add shell scripts to execute during installation
@@ -83,7 +84,27 @@ detect_os() {
   fi
 }
 
+# Detect if running on WSL (Windows Subsystem for Linux)
+# Returns 0 (true) if on WSL, 1 (false) otherwise
+detect_wsl() {
+  # Check for WSL specific files and kernel information
+  if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ] || 
+     [ -f /proc/sys/fs/binfmt_misc/WSLInterop-late ] ||
+     grep -qi microsoft /proc/version 2>/dev/null ||
+     grep -qi wsl /proc/sys/kernel/osrelease 2>/dev/null; then
+    return 0
+  else
+    return 1
+  fi
+}
+
 OS_TYPE=$(detect_os)
+ON_WSL=false
+
+# Check WSL status only for Ubuntu
+if [ "$OS_TYPE" = "ubuntu" ] && detect_wsl; then
+  ON_WSL=true
+fi
 
 # Whitelist of files/directories to preserve during updates
 WHITELIST="
@@ -192,6 +213,7 @@ show_help() {
   echo "  --no-preserve    Don't preserve whitelisted files during update"
   echo "  --build          Create build snapshot of specific commit (optional: provide commit hash)"
   echo "  --build <commit> Create build snapshot of specific commit hash"
+  echo "  --online         Force online package installation using apt/apk instead of local .deb/.apk files"
   echo ""
   echo "PRESERVED FILES:"
   echo "  The following files/directories are preserved during updates:"
@@ -233,6 +255,11 @@ show_help() {
   echo "  Use --build <commit-hash> to create a snapshot of specific commit"
   echo "  Builds are saved in ./build/<commit-hash> directory"
   echo ""
+  echo "ONLINE INSTALLATION:"
+  echo "  By default, the script installs packages from local .deb/.apk files."
+  echo "  Use --online to force online installation using the system package manager."
+  echo "  On Ubuntu/WSL, online installation is automatically enabled (no --online needed)."
+  echo ""
   echo "EXAMPLES:"
   echo "  Normal installation:        $0"
   echo "  Installation with logging:  $0 --log"
@@ -241,6 +268,7 @@ show_help() {
   echo "  No file preservation:      $0 --no-preserve"
   echo "  Build latest commit:       $0 --build"
   echo "  Build specific commit:     $0 --build abc123def456"
+  echo "  Force online installation: $0 --online"
   echo ""
   echo "NOTE:"
   echo "  If you modify this script or add new parameters, please update this help section."
@@ -294,24 +322,103 @@ show_progress() {
   printf "\r%s completed.                      \n" "$message"
 }
 
-# Function to install packages based on OS
+# Function to install packages using apt on Ubuntu
+install_with_apt() {
+  log_message "Installing packages using apt (online mode)..."
+  
+  # Update package list
+  log_message "Updating package lists..."
+  if [ "$LOG_MODE" = true ]; then
+    sudo apt-get update &
+  else
+    sudo apt-get update > /dev/null 2>&1 &
+  fi
+  show_progress "Updating package lists" $!
+  
+  # Install required packages
+  log_message "Installing nodejs, gcc, g++, cmake..."
+  if [ "$LOG_MODE" = true ]; then
+    sudo apt-get install -y nodejs gcc g++ cmake &
+  else
+    sudo apt-get install -y nodejs gcc g++ cmake > /dev/null 2>&1 &
+  fi
+  show_progress "Installing packages" $!
+  
+  log_message "apt installation completed."
+}
+
+# Function to install packages using apk on Alpine (online mode)
+install_with_apk() {
+  log_message "Installing packages using apk (online mode)..."
+  
+  # Update package list
+  log_message "Updating package lists..."
+  if [ "$LOG_MODE" = true ]; then
+    apk update &
+  else
+    apk update > /dev/null 2>&1 &
+  fi
+  show_progress "Updating package lists" $!
+  
+  # Install required packages
+  log_message "Installing nodejs, gcc, g++, cmake..."
+  if [ "$LOG_MODE" = true ]; then
+    apk add nodejs gcc g++ cmake make bash &
+  else
+    apk add nodejs gcc g++ cmake make bash > /dev/null 2>&1 &
+  fi
+  show_progress "Installing packages" $!
+  
+  log_message "apk installation completed."
+}
+
+# Function to install packages based on OS and conditions
 install_packages() {
   if [ "$SKIP_PKGS" = true ]; then
     log_message "Skipping package installation as requested."
     return
   fi
 
-  case "$OS_TYPE" in
-    "ubuntu")
-      install_debs
-      ;;
-    "alpine")
-      install_apks
-      ;;
-    *)
-      log_message "Unknown OS type. Skipping package installation."
-      ;;
-  esac
+  # Determine if we should use online mode
+  USE_ONLINE=false
+  
+  # Case 1: --online flag is set
+  if [ "$ONLINE_MODE" = true ]; then
+    USE_ONLINE=true
+    log_message "Online mode forced via --online flag."
+  # Case 2: Ubuntu on WSL - automatically use online mode
+  elif [ "$OS_TYPE" = "ubuntu" ] && [ "$ON_WSL" = true ]; then
+    USE_ONLINE=true
+    log_message "Ubuntu on WSL detected - automatically using online package installation."
+  fi
+
+  # Execute appropriate installation method
+  if [ "$USE_ONLINE" = true ]; then
+    case "$OS_TYPE" in
+      "ubuntu")
+        install_with_apt
+        ;;
+      "alpine")
+        install_with_apk
+        ;;
+      *)
+        log_message "Unknown OS type. Cannot perform online installation."
+        ;;
+    esac
+  else
+    # Use local package files (original behavior)
+    case "$OS_TYPE" in
+      "ubuntu")
+        install_debs
+        ;;
+      "alpine")
+        install_apks
+        ;;
+      *)
+        log_message "Unknown OS type. Skipping package installation."
+        ;;
+    esac
+  fi
 }
 
 # Function to install .deb packages
@@ -755,6 +862,10 @@ for arg in "$@"; do
       PRESERVE_DATA=false
       log_message "File preservation disabled - whitelisted files will not be saved"
       ;;
+    --online)
+      ONLINE_MODE=true
+      log_message "Online installation mode enabled - will use apt/apk instead of local packages"
+      ;;
   esac
 done
 
@@ -902,6 +1013,17 @@ fi
 
 if [ "$PRESERVE_DATA" = true ] && [ -d "$BACKUP_DIR" ]; then
   log_message "Note: Whitelisted files were preserved during update"
+fi
+
+# Display package installation method information
+if [ "$SKIP_PKGS" = true ]; then
+  log_message "Note: Package installation was skipped (--skip-pkgs or existing installation)"
+elif [ "$ONLINE_MODE" = true ]; then
+  log_message "Note: Packages were installed online using system package manager (--online mode)"
+elif [ "$OS_TYPE" = "ubuntu" ] && [ "$ON_WSL" = true ]; then
+  log_message "Note: Ubuntu on WSL detected - packages were installed online using apt"
+else
+  log_message "Note: Packages were installed from local .deb/.apk files"
 fi
 
 log_message "Installation completed successfully!"
