@@ -353,6 +353,10 @@ install_apks() {
     if [ -n "$apk_files" ]; then
       log_message "Found APK packages, testing installation..."
       
+      # First installation attempt
+      log_message "First installation attempt..."
+      first_attempt_failed=false
+      
       # Try to install each package individually and skip failures
       for apk_file in $apk_files; do
         pkg_name=$(basename "$apk_file")
@@ -362,16 +366,54 @@ install_apks() {
           if apk add --allow-untrusted "$apk_file"; then
             log_message "✓ Successfully installed: $pkg_name"
           else
-            log_message "✗ Skipping problematic package: $pkg_name"
+            log_message "✗ Failed to install: $pkg_name"
+            first_attempt_failed=true
           fi
         else
           if apk add --allow-untrusted "$apk_file" > /dev/null 2>&1; then
             log_message "✓ Installed: $pkg_name"
           else
-            log_message "✗ Skipped: $pkg_name (dependency conflict)"
+            log_message "✗ Failed: $pkg_name"
+            first_attempt_failed=true
           fi
         fi
       done
+      
+      # If first attempt had failures, try again
+      if [ "$first_attempt_failed" = true ]; then
+        log_message "Some packages failed on first attempt. Running second installation pass..."
+        
+        # Second attempt - try to install any remaining packages
+        # This often resolves dependency issues on Alpine
+        for apk_file in $apk_files; do
+          pkg_name=$(basename "$apk_file")
+          log_message "Second attempt for: $pkg_name"
+          
+          if [ "$LOG_MODE" = true ]; then
+            if apk add --allow-untrusted "$apk_file"; then
+              log_message "✓ Successfully installed on second attempt: $pkg_name"
+            else
+              log_message "✗ Still failed on second attempt: $pkg_name"
+            fi
+          else
+            if apk add --allow-untrusted "$apk_file" > /dev/null 2>&1; then
+              log_message "✓ Installed on second attempt: $pkg_name"
+            else
+              log_message "✗ Still failed: $pkg_name"
+            fi
+          fi
+        done
+        
+        log_message "Second installation pass completed."
+      fi
+      
+      # Update APK cache to ensure everything is properly registered
+      log_message "Updating APK cache..."
+      if [ "$LOG_MODE" = true ]; then
+        apk update > /dev/null 2>&1
+      else
+        apk update > /dev/null 2>&1
+      fi
       
       log_message "APK installation process completed."
     else
