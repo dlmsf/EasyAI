@@ -288,6 +288,49 @@ class ChatHUD extends EventEmitter {
     this.isBotTyping = false;
     this.redrawInput();
 }
+
+// Helper method to wrap text without breaking words
+wrapText(text, maxWidth) {
+    if (text.length <= maxWidth) return [text];
+    
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+    
+    for (const word of words) {
+        // Check if adding this word would exceed the limit
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        
+        if (testLine.length <= maxWidth) {
+            currentLine = testLine;
+        } else {
+            // If current line is not empty, push it
+            if (currentLine) {
+                lines.push(currentLine);
+            }
+            
+            // If the word itself is longer than maxWidth, we need to hyphenate
+            if (word.length > maxWidth) {
+                // Split the long word
+                let remainingWord = word;
+                while (remainingWord.length > maxWidth) {
+                    lines.push(remainingWord.substring(0, maxWidth - 1) + '-');
+                    remainingWord = remainingWord.substring(maxWidth - 1);
+                }
+                currentLine = remainingWord;
+            } else {
+                currentLine = word;
+            }
+        }
+    }
+    
+    // Push the last line
+    if (currentLine) {
+        lines.push(currentLine);
+    }
+    
+    return lines;
+}
   
   /**
  * Display a token during streaming response
@@ -369,89 +412,49 @@ redrawMessages() {
         
         // Calculate prefix for first line
         const prefix = `[${msg.timestamp}] ${msg.sender}: `;
-        const prefixLength = prefix.length;
-        const availableWidth = this.width - 4; // border(2) + spaces(2)
+        const prefixLength = this.stripAnsi(prefix).length;
+        const firstLineAvailable = this.width - prefixLength - 4;
+        const continuationIndent = ' '.repeat(prefixLength - 1);
+        const continuationAvailable = this.width - continuationIndent.length - 4;
         
         for (let j = 0; j < msgLines.length; j++) {
-            let line = msgLines[j];
+            const line = msgLines[j];
             
             if (j === 0) {
                 // First line includes prefix
-                const firstLine = `${this.config.colors.timestamp}[${msg.timestamp}]\x1b[0m ${msg.color}${msg.sender}:\x1b[0m `;
+                const coloredPrefix = `${this.config.colors.timestamp}[${msg.timestamp}]\x1b[0m ${msg.color}${msg.sender}:\x1b[0m `;
                 
-                // Handle wrapping for first line
-                let remainingText = line;
-                let isFirstLine = true;
+                // Wrap the first line with word awareness
+                const wrappedLines = this.wrapText(line, firstLineAvailable);
                 
-                while (remainingText.length > 0) {
-                    if (isFirstLine) {
-                        // First line with prefix
-                        const firstLinePrefix = firstLine;
-                        const firstLinePrefixLength = this.stripAnsi(firstLinePrefix).length;
-                        const firstLineAvailable = this.width - firstLinePrefixLength - 3;
-                        
-                        if (remainingText.length <= firstLineAvailable) {
-                            displayLines.push({
-                                prefix: firstLinePrefix,
-                                text: remainingText,
-                                isFirstOfMessage: j === 0 && isFirstLine
-                            });
-                            remainingText = '';
-                        } else {
-                            displayLines.push({
-                                prefix: firstLinePrefix,
-                                text: remainingText.substring(0, firstLineAvailable),
-                                isFirstOfMessage: j === 0 && isFirstLine
-                            });
-                            remainingText = remainingText.substring(firstLineAvailable);
-                        }
-                        isFirstLine = false;
+                for (let k = 0; k < wrappedLines.length; k++) {
+                    if (k === 0) {
+                        // First part of first line with prefix
+                        displayLines.push({
+                            prefix: coloredPrefix,
+                            text: wrappedLines[k],
+                            isFirstOfMessage: true
+                        });
                     } else {
-                        // Continuation lines (indented)
-                        const indent = ' '.repeat(this.stripAnsi(firstLine).length - 1);
-                        const indentLength = this.stripAnsi(indent).length;
-                        const lineAvailable = this.width - indentLength - 3;
-                        
-                        if (remainingText.length <= lineAvailable) {
-                            displayLines.push({
-                                prefix: indent,
-                                text: remainingText,
-                                isContinuation: true
-                            });
-                            remainingText = '';
-                        } else {
-                            displayLines.push({
-                                prefix: indent,
-                                text: remainingText.substring(0, lineAvailable),
-                                isContinuation: true
-                            });
-                            remainingText = remainingText.substring(lineAvailable);
-                        }
+                        // Continuation of first line (indented)
+                        displayLines.push({
+                            prefix: continuationIndent,
+                            text: wrappedLines[k],
+                            isContinuation: true
+                        });
                     }
                 }
             } else {
                 // Subsequent lines of multi-line message (no prefix)
-                const indent = ' '.repeat(this.stripAnsi(`[${msg.timestamp}] ${msg.sender}: `).length);
-                let remainingText = line;
+                // Wrap with word awareness
+                const wrappedLines = this.wrapText(line, continuationAvailable);
                 
-                while (remainingText.length > 0) {
-                    const lineAvailable = this.width - indent.length - 3;
-                    
-                    if (remainingText.length <= lineAvailable) {
-                        displayLines.push({
-                            prefix: indent,
-                            text: remainingText,
-                            isContinuation: true
-                        });
-                        remainingText = '';
-                    } else {
-                        displayLines.push({
-                            prefix: indent,
-                            text: remainingText.substring(0, lineAvailable),
-                            isContinuation: true
-                        });
-                        remainingText = remainingText.substring(lineAvailable);
-                    }
+                for (const wrappedLine of wrappedLines) {
+                    displayLines.push({
+                        prefix: continuationIndent,
+                        text: wrappedLine,
+                        isContinuation: true
+                    });
                 }
             }
         }
@@ -608,15 +611,22 @@ stripAnsi(str) {
     process.stdin.setRawMode(false);
     this.rl.close();
     
+    // Remove all listeners to prevent memory leaks
+    process.removeAllListeners('SIGINT');
+    
     // Call onExit callback if provided
     if (typeof this.config.onExit === 'function') {
-      this.config.onExit(this);
+        // Use setTimeout to break the call stack
+        setTimeout(() => {
+            this.config.onExit(this);
+        }, 0);
     }
-  }
+}
   
   start() {
-    this.addMessage('System', this.config.messages.welcome, this.config.colors.system);
-    this.addMessage('Bot', this.config.messages.initialBot, this.config.colors.bot);
+    activeChatInstance = this;
+    //this.addMessage('System', this.config.messages.welcome, this.config.colors.system);
+    //this.addMessage('Bot', this.config.messages.initialBot, this.config.colors.bot);
     
     process.stdout.on('resize', () => {
       this.width = process.stdout.columns || 80;
@@ -675,14 +685,22 @@ stripAnsi(str) {
   }
 }
 
+// Remove the global SIGINT handler and replace with this
+let activeChatInstance = null;
+
 // Handle SIGINT globally
 process.on('SIGINT', () => {
-  process.stdout.write('\x1b[2J\x1b[3J\x1b[0;0H');
-  process.stdout.write('\x1b[?25h');
-  process.stdout.write('\x1b[0m');
-  process.stdin.setRawMode(false);
-  console.log('\n✨ Goodbye! ✨');
-  process.exit();
+    if (activeChatInstance) {
+        activeChatInstance.cleanup();
+        activeChatInstance = null;
+    } else {
+        process.stdout.write('\x1b[2J\x1b[3J\x1b[0;0H');
+        process.stdout.write('\x1b[?25h');
+        process.stdout.write('\x1b[0m');
+        process.stdin.setRawMode(false);
+        console.log('\n✨ Goodbye! ✨');
+        process.exit();
+    }
 });
 
 // If script is executed directly (not imported), run with default configuration

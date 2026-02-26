@@ -153,7 +153,7 @@ options : [
                     chat.NewMessage('assistant', result.full_text)
                 }
                 
-                // Resolve with the full response to prevent default response
+                // Resolve with the full response
                 resolve(fullResponse)
             })
         }
@@ -177,29 +177,20 @@ options : [
                 initialBot: 'Hello! How can I help you today?',
                 goodbye: '\n✨ Chat ended. Returning to menu... ✨'
             },
-            onExit: async (instance) => {
+            onExit: (instance) => {
                 // Clean up and return to menu
                 instance.cleanup()
+                // Recreate readline interface and show menu
                 MenuCLI.rl = readline.createInterface({
                     input: process.stdin,
                     output: process.stdout
                 });
-                await MenuCLI.displayMenu(SandboxMenu, { props: props })
+                MenuCLI.displayMenu(SandboxMenu, { props: props })
             }
         })
         
         // Start the chat
         chatHUD.start()
-        
-        // Handle cleanup if the process gets interrupted
-        process.once('SIGINT', () => {
-            chatHUD.cleanup()
-            MenuCLI.rl = readline.createInterface({
-                input: process.stdin,
-                output: process.stdout
-            });
-            MenuCLI.displayMenu(SandboxMenu, { props: props })
-        })
     }
 },
     {
