@@ -8,6 +8,7 @@ import TerminalGenerate from '../../TerminalGenerate.js'
 import ColorText from '../../useful/ColorText.js'
 import PM2 from '../../useful/PM2.js'
 import FreePort from '../../useful/FreePort.js'
+import ChatHUD from '../../ChatHUD.js';
 
 let webgpt_processname
 
@@ -101,6 +102,103 @@ options : [
                 });
                 await MenuCLI.displayMenu(SandboxMenu, { props: props })
             }
+        })
+    }
+},
+{
+    name: ColorText.magenta('Chat (New)'),
+    action: async () => {
+        MenuCLI.close()
+        console.clear()
+        let ai = new EasyAI(props)
+        const chat = new Chat()
+        
+        // Create a message processor function for ChatHUD
+        const messageProcessor = async (userMessage, displayToken) => {
+            // Add user message to chat history
+            chat.NewMessage('user', userMessage)
+            
+            // Store the complete response as we build it
+            let fullResponse = ''
+            
+            // IMPORTANT: Return a promise that resolves when streaming is complete
+            return new Promise(async (resolve) => {
+                const result = await ai.Chat(chat.Historical, {
+                    tokenCallback: async (token) => {
+                        // Handle token in various formats
+                        let content = ''
+                        if (typeof token === 'string') {
+                            content = token
+                        } else if (token?.stream?.content) {
+                            content = token.stream.content
+                        } else if (token?.content) {
+                            content = token.content
+                        }
+                        
+                        if (content) {
+                            fullResponse += content
+                            // Use the displayToken function from ChatHUD
+                            await displayToken(content)
+                        }
+                    },
+                    stream: true,
+                    systemMessage: props.systemMessage,
+                    systemType: props.systemType
+                })
+                
+                // Add ONLY the clean text response to chat history
+                if (fullResponse) {
+                    chat.NewMessage('assistant', fullResponse)
+                } else if (result?.full_text) {
+                    chat.NewMessage('assistant', result.full_text)
+                }
+                
+                // Resolve with the full response to prevent default response
+                resolve(fullResponse)
+            })
+        }
+        
+        // Configure ChatHUD with custom settings
+        const chatHUD = new ChatHUD({
+            messageProcessor: messageProcessor,
+            colors: {
+                border: '\x1b[38;5;39m',
+                title: '\x1b[1;38;5;220m',
+                user: '\x1b[32m',
+                bot: '\x1b[35m',
+                system: '\x1b[33m',
+                timestamp: '\x1b[90m',
+                prompt: '\x1b[38;5;220m',
+                cursor: '\x1b[48;5;220;30m',
+                botIndicator: '\x1b[3;90m'
+            },
+            messages: {
+                welcome: '🚀 Welcome to the New Terminal Chat!',
+                initialBot: 'Hello! How can I help you today?',
+                goodbye: '\n✨ Chat ended. Returning to menu... ✨'
+            },
+            onExit: async (instance) => {
+                // Clean up and return to menu
+                instance.cleanup()
+                MenuCLI.rl = readline.createInterface({
+                    input: process.stdin,
+                    output: process.stdout
+                });
+                await MenuCLI.displayMenu(SandboxMenu, { props: props })
+            }
+        })
+        
+        // Start the chat
+        chatHUD.start()
+        
+        // Handle cleanup if the process gets interrupted
+        process.once('SIGINT', () => {
+            chatHUD.cleanup()
+            MenuCLI.rl = readline.createInterface({
+                input: process.stdin,
+                output: process.stdout
+            });
+            MenuCLI.displayMenu(SandboxMenu, { props: props })
         })
     }
 },
