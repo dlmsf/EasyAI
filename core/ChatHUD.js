@@ -5,19 +5,9 @@ import EventEmitter from 'events';
 
 /**
  * Robust Terminal Chat Interface with full customization support
- * Preserves all original functionality including rapid message handling
- * Added proper line break support for bot responses
+ * Fixed: Messages sent while bot is typing are queued and processed together after response completes
  */
 class ChatHUD extends EventEmitter {
-  /**
-   * Create a new ChatHUD instance
-   * @param {Object} config - Configuration object for customizing the chat
-   * @param {Function} [config.messageProcessor] - Async function to process user messages and return bot responses
-   * @param {Object} [config.colors] - Custom color mappings
-   * @param {Function} [config.onInit] - Called when chat initializes
-   * @param {Function} [config.onExit] - Called when chat exits
-   * @param {Object} [config.messages] - Custom welcome messages
-   */
   constructor(config = {}) {
     super();
     
@@ -54,8 +44,9 @@ class ChatHUD extends EventEmitter {
     this.inputLine = '';
     this.cursorPosition = 0;
     this.isBotTyping = false;
-    this.botResponseQueue = [];
-    this.isProcessingBotQueue = false;
+    this.messageQueue = []; // Queue of messages to be processed
+    this.pendingMessages = []; // Messages received while bot is typing
+    this.isProcessing = false;
     this.width = process.stdout.columns || 80;
     this.height = process.stdout.rows || 24;
     
@@ -75,7 +66,6 @@ class ChatHUD extends EventEmitter {
     this.clearScreen();
     this.drawFullInterface();
 
-    // Call onInit callback if provided
     if (typeof this.config.onInit === 'function') {
       this.config.onInit(this);
     }
@@ -83,14 +73,13 @@ class ChatHUD extends EventEmitter {
   
   clearScreen() {
     process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
-    process.stdout.write('\x1b[?25l'); // Hide cursor
+    process.stdout.write('\x1b[?25l');
   }
   
   drawFullInterface() {
     this.width = process.stdout.columns || 80;
     this.height = process.stdout.rows || 24;
     
-    // Clear everything and start from top
     process.stdout.write('\x1b[0;0H');
     
     // Draw top border
@@ -114,7 +103,7 @@ class ChatHUD extends EventEmitter {
     for (let i = 0; i < this.width - 2; i++) process.stdout.write('─');
     process.stdout.write(`┤\x1b[0m\n`);
     
-    // Messages area (filled dynamically)
+    // Messages area
     const messageLines = this.height - 7;
     for (let i = 0; i < messageLines; i++) {
       process.stdout.write(`${this.config.colors.border}│\x1b[0m`);
@@ -127,7 +116,7 @@ class ChatHUD extends EventEmitter {
     for (let i = 0; i < this.width - 2; i++) process.stdout.write('─');
     process.stdout.write(`┤\x1b[0m\n`);
     
-    // Input line (will be filled by redrawInput)
+    // Input line
     process.stdout.write(`${this.config.colors.border}│\x1b[0m`);
     process.stdout.write(' '.repeat(this.width - 2));
     process.stdout.write(`${this.config.colors.border}│\x1b[0m\n`);
@@ -137,7 +126,6 @@ class ChatHUD extends EventEmitter {
     for (let i = 0; i < this.width - 2; i++) process.stdout.write('─');
     process.stdout.write(`┘\x1b[0m`);
     
-    // Now fill with actual content
     this.redrawMessages();
     this.redrawInput();
   }
@@ -219,163 +207,161 @@ class ChatHUD extends EventEmitter {
       const userMessage = this.inputLine;
       this.inputLine = '';
       this.cursorPosition = 0;
+      
+      // Always add user message to display immediately
       this.addMessage('You', userMessage, this.config.colors.user);
       
       // Emit message event
       this.emit('userMessage', userMessage);
       
-      this.botResponseQueue.push(userMessage);
-      this.processBotQueue();
+      if (this.isBotTyping) {
+        // If bot is typing, add to pending messages
+        this.pendingMessages.push(userMessage);
+      } else {
+        // If bot is not typing, add to queue for processing
+        this.messageQueue.push(userMessage);
+        this.processQueue();
+      }
+      
+      this.redrawInput();
     }
-    this.redrawInput();
   }
   
-  processBotQueue() {
-    if (this.isProcessingBotQueue || this.botResponseQueue.length === 0) return;
-    this.isProcessingBotQueue = true;
+  processQueue() {
+    if (this.isProcessing || this.messageQueue.length === 0 || this.isBotTyping) return;
+    
+    this.isProcessing = true;
     
     const processNext = async () => {
-      while (this.botResponseQueue.length > 0) {
-        const message = this.botResponseQueue.shift();
-        await this.generateBotResponse(message);
+      while (this.messageQueue.length > 0 && !this.isBotTyping) {
+        // Get the next message to process
+        const currentMessage = this.messageQueue.shift();
+        
+        // Collect any pending messages that arrived while previous bot was typing
+        const messagesToProcess = [currentMessage, ...this.pendingMessages];
+        this.pendingMessages = []; // Clear pending messages
+        
+        // Generate response for all messages together
+        await this.generateBotResponse(messagesToProcess);
       }
-      this.isProcessingBotQueue = false;
+      this.isProcessing = false;
     };
     
     processNext();
   }
   
-  // In ChatHUD.js - Update the generateBotResponse method
-  async generateBotResponse(userMessage) {
-    this.isBotTyping = true;
-    this.redrawInput();
-    
-    await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 1000));
-    
-    // Use custom message processor if provided
-    if (typeof this.config.messageProcessor === 'function') {
-        // Custom processor handles streaming via displayToken
-        await this.config.messageProcessor(userMessage, this.displayToken.bind(this));
-    } else {
-        // Default behavior when no custom processor
-        const response = this.getDefaultBotResponse(userMessage);
-        
-        const timestamp = new Date().toLocaleTimeString('en-US', { 
-            hour: '2-digit', minute: '2-digit', second: '2-digit'
-        });
-        
-        const msgIndex = this.messages.length;
-        this.messages.push({
-            sender: 'Bot',
-            text: '',
-            timestamp,
-            labelColor: this.config.colors.bot,
-            textColor: this.config.colors.botText,
-            lines: []
-        });
-        
-        // Emit bot response started
-        this.emit('botResponseStarted', userMessage);
-        
-        let currentText = '';
-        for (let i = 0; i < response.length; i++) {
-            currentText += response[i];
-            this.messages[msgIndex].text = currentText;
-            this.messages[msgIndex].lines = currentText.split('\n');
-            // Ensure colors persist
-            this.messages[msgIndex].labelColor = this.config.colors.bot;
-            this.messages[msgIndex].textColor = this.config.colors.botText;
-            this.redrawMessages();
-            await new Promise(resolve => setTimeout(resolve, 40 + Math.random() * 40));
-        }
-        
-        // Emit bot response completed
-        this.emit('botResponseCompleted', response);
-    }
-    
-    this.isBotTyping = false;
-    this.redrawInput();
-}
+  // In ChatHUD.js - Update generateBotResponse to ensure we track the current bot message
 
-// Helper method to wrap text without breaking words
-wrapText(text, maxWidth) {
-    if (text.length <= maxWidth) return [text];
-    
-    const words = text.split(' ');
-    const lines = [];
-    let currentLine = '';
-    
-    for (const word of words) {
-        // Check if adding this word would exceed the limit
-        const testLine = currentLine ? `${currentLine} ${word}` : word;
-        
-        if (testLine.length <= maxWidth) {
-            currentLine = testLine;
-        } else {
-            // If current line is not empty, push it
-            if (currentLine) {
-                lines.push(currentLine);
-            }
-            
-            // If the word itself is longer than maxWidth, we need to hyphenate
-            if (word.length > maxWidth) {
-                // Split the long word
-                let remainingWord = word;
-                while (remainingWord.length > maxWidth) {
-                    lines.push(remainingWord.substring(0, maxWidth - 1) + '-');
-                    remainingWord = remainingWord.substring(maxWidth - 1);
-                }
-                currentLine = remainingWord;
-            } else {
-                currentLine = word;
-            }
-        }
-    }
-    
-    // Push the last line
-    if (currentLine) {
-        lines.push(currentLine);
-    }
-    
-    return lines;
+async generateBotResponse(messages) {
+  this.isBotTyping = true;
+  this.redrawInput();
+  
+  // Create the bot message container BEFORE streaming starts
+  const timestamp = new Date().toLocaleTimeString('en-US', { 
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+  
+  const botMessage = {
+      sender: 'Bot',
+      text: '',
+      timestamp,
+      timestamp_raw: Date.now(),
+      labelColor: this.config.colors.bot,
+      textColor: this.config.colors.botText,
+      lines: []
+  };
+  
+  this.messages.push(botMessage);
+  this.redrawMessages();
+  
+  // Use custom message processor if provided
+  if (typeof this.config.messageProcessor === 'function') {
+      // Pass all messages that should be processed together
+      const triggerMessage = messages[messages.length - 1];
+      await this.config.messageProcessor(triggerMessage, this.displayToken.bind(this), messages);
+  } else {
+      // Default behavior
+      const response = this.getDefaultBotResponse(messages.join(' '));
+      
+      this.emit('botResponseStarted', messages);
+      
+      let currentText = '';
+      for (let i = 0; i < response.length; i++) {
+          currentText += response[i];
+          
+          // Update the LAST bot message (which should be the one we just created)
+          const lastBotMessage = this.messages[this.messages.length - 1];
+          if (lastBotMessage && lastBotMessage.sender === 'Bot') {
+              lastBotMessage.text = currentText;
+              lastBotMessage.lines = currentText.split('\n');
+              lastBotMessage.labelColor = this.config.colors.bot;
+              lastBotMessage.textColor = this.config.colors.botText;
+          }
+          
+          this.redrawMessages();
+          await new Promise(resolve => setTimeout(resolve, 40 + Math.random() * 40));
+      }
+      
+      this.emit('botResponseCompleted', response);
+  }
+  
+  this.isBotTyping = false;
+  this.redrawInput();
+  
+  // Check if there are more messages in queue
+  if (this.messageQueue.length > 0) {
+      this.processQueue();
+  }
 }
   
-  /**
- * Display a token during streaming response
- * @param {string} token - Token to display
- */
-  async displayToken(token) {
-    // Get the last message
-    let lastMessage = this.messages[this.messages.length - 1];
-    const timestamp = new Date().toLocaleTimeString('en-US', { 
-        hour: '2-digit', minute: '2-digit', second: '2-digit'
-    });
-    
-    // If no last message or last message is not from bot, create new bot message
-    if (!lastMessage || lastMessage.sender !== 'Bot') {
-        this.messages.push({
-            sender: 'Bot',
-            text: token,
-            timestamp,
-            labelColor: this.config.colors.bot,  // Store label color separately
-            textColor: this.config.colors.botText,  // Store text color separately
-            lines: token.split('\n')
-        });
-    } else {
-        // Append to existing bot message
-        lastMessage.text += token;
-        // Ensure colors are set
-        if (!lastMessage.labelColor) {
-            lastMessage.labelColor = this.config.colors.bot;
-        }
-        if (!lastMessage.textColor) {
-            lastMessage.textColor = this.config.colors.botText;
-        }
-        // Update lines after text change
-        lastMessage.lines = lastMessage.text.split('\n');
-    }
-    
-    this.redrawMessages();
+  // In ChatHUD.js - Fix the displayToken method
+
+async displayToken(token) {
+  // Find the last bot message that is currently being streamed
+  let lastBotMessage = null;
+  
+  // Look through messages from the end to find the last incomplete bot message
+  for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (this.messages[i].sender === 'Bot') {
+          lastBotMessage = this.messages[i];
+          break;
+      }
+  }
+  
+  const timestamp = new Date().toLocaleTimeString('en-US', { 
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+  
+  // If no bot message exists or the last bot message is complete (has a period at the end or is older than 2 seconds), create new one
+  const now = Date.now();
+  const messageAge = lastBotMessage ? now - (lastBotMessage.timestamp_raw || 0) : Infinity;
+  
+  if (!lastBotMessage || messageAge > 2000) { // If message is older than 2 seconds, it's probably complete
+      // Create new bot message
+      const newMessage = {
+          sender: 'Bot',
+          text: token,
+          timestamp,
+          timestamp_raw: now,
+          labelColor: this.config.colors.bot,
+          textColor: this.config.colors.botText,
+          lines: token.split('\n')
+      };
+      this.messages.push(newMessage);
+  } else {
+      // Append to existing bot message
+      lastBotMessage.text += token;
+      lastBotMessage.timestamp_raw = now; // Update timestamp
+      if (!lastBotMessage.labelColor) {
+          lastBotMessage.labelColor = this.config.colors.bot;
+      }
+      if (!lastBotMessage.textColor) {
+          lastBotMessage.textColor = this.config.colors.botText;
+      }
+      lastBotMessage.lines = lastBotMessage.text.split('\n');
+  }
+  
+  this.redrawMessages();
 }
   
   getDefaultBotResponse(message) {
@@ -400,200 +386,202 @@ wrapText(text, maxWidth) {
   
   addMessage(sender, text, color) {
     const timestamp = new Date().toLocaleTimeString('en-US', { 
-        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
     
-    // Determine colors based on sender
     let labelColor, textColor;
     if (sender === 'Bot') {
-        labelColor = this.config.colors.bot;
-        textColor = this.config.colors.botText;
+      labelColor = this.config.colors.bot;
+      textColor = this.config.colors.botText;
     } else if (sender === 'You') {
-        labelColor = this.config.colors.user;
-        textColor = this.config.colors.userText;
+      labelColor = this.config.colors.user;
+      textColor = this.config.colors.userText;
     } else {
-        labelColor = this.config.colors.system;
-        textColor = this.config.colors.systemText;
+      labelColor = this.config.colors.system;
+      textColor = this.config.colors.systemText;
     }
     
     this.messages.push({ 
-        sender, 
-        text, 
-        timestamp, 
-        labelColor,  // Store label color
-        textColor,   // Store text color
-        lines: text.split('\n')
+      sender, 
+      text, 
+      timestamp, 
+      labelColor,
+      textColor,
+      lines: text.split('\n')
     });
     this.redrawMessages();
-}
+  }
   
-redrawMessages() {
-    const messageStartLine = 3; // After top border, title, separator
-    const messageLines = this.height - 7; // Leave space for separator, input, and bottom border
+  redrawMessages() {
+    const messageStartLine = 3;
+    const messageLines = this.height - 7;
     
-    // Build display lines with proper wrapping
     const displayLines = [];
     
-    // Process messages from oldest to newest for display
     for (let i = 0; i < this.messages.length; i++) {
-        const msg = this.messages[i];
-        const msgLines = msg.lines || msg.text.split('\n');
+      const msg = this.messages[i];
+      const msgLines = msg.lines || msg.text.split('\n');
+      
+      const labelColor = msg.labelColor || 
+        (msg.sender === 'Bot' ? this.config.colors.bot : 
+         msg.sender === 'You' ? this.config.colors.user : 
+         this.config.colors.system);
+      
+      const textColor = msg.textColor || 
+        (msg.sender === 'Bot' ? this.config.colors.botText : 
+         msg.sender === 'You' ? this.config.colors.userText : 
+         this.config.colors.systemText) || '\x1b[37m';
+      
+      const prefix = `[${msg.timestamp}] ${msg.sender}: `;
+      const prefixLength = this.stripAnsi(prefix).length;
+      const firstLineAvailable = this.width - prefixLength - 4;
+      const continuationIndent = ' '.repeat(prefixLength - 1);
+      const continuationAvailable = this.width - continuationIndent.length - 4;
+      
+      for (let j = 0; j < msgLines.length; j++) {
+        const line = msgLines[j];
         
-        // Get the colors - with fallbacks to maintain backward compatibility
-        const labelColor = msg.labelColor || 
-                          (msg.sender === 'Bot' ? this.config.colors.bot : 
-                           msg.sender === 'You' ? this.config.colors.user : 
-                           this.config.colors.system);
-        
-        const textColor = msg.textColor || 
-                         (msg.sender === 'Bot' ? this.config.colors.botText : 
-                          msg.sender === 'You' ? this.config.colors.userText : 
-                          this.config.colors.systemText) || '\x1b[37m'; // Default to white if not set
-        
-        // Calculate prefix for first line
-        const prefix = `[${msg.timestamp}] ${msg.sender}: `;
-        const prefixLength = this.stripAnsi(prefix).length;
-        const firstLineAvailable = this.width - prefixLength - 4; // -4 for borders and spacing
-        const continuationIndent = ' '.repeat(prefixLength - 1);
-        const continuationAvailable = this.width - continuationIndent.length - 4;
-        
-        for (let j = 0; j < msgLines.length; j++) {
-            const line = msgLines[j];
-            
-            if (j === 0) {
-                // First line includes prefix with label color
-                const coloredPrefix = `${this.config.colors.timestamp}[${msg.timestamp}]\x1b[0m ${labelColor}${msg.sender}:\x1b[0m `;
-                
-                // Wrap the first line with word awareness
-                const wrappedLines = this.wrapText(line, firstLineAvailable);
-                
-                for (let k = 0; k < wrappedLines.length; k++) {
-                    if (k === 0) {
-                        // First part of first line with prefix
-                        displayLines.push({
-                            prefix: coloredPrefix,
-                            text: wrappedLines[k],
-                            textColor: textColor, // Use text color for message
-                            isFirstOfMessage: true
-                        });
-                    } else {
-                        // Continuation of first line (indented)
-                        displayLines.push({
-                            prefix: continuationIndent,
-                            text: wrappedLines[k],
-                            textColor: textColor, // Use text color for message
-                            isContinuation: true
-                        });
-                    }
-                }
+        if (j === 0) {
+          const coloredPrefix = `${this.config.colors.timestamp}[${msg.timestamp}]\x1b[0m ${labelColor}${msg.sender}:\x1b[0m `;
+          
+          const wrappedLines = this.wrapText(line, firstLineAvailable);
+          
+          for (let k = 0; k < wrappedLines.length; k++) {
+            if (k === 0) {
+              displayLines.push({
+                prefix: coloredPrefix,
+                text: wrappedLines[k],
+                textColor: textColor,
+                isFirstOfMessage: true
+              });
             } else {
-                // Subsequent lines of multi-line message (no prefix)
-                // Wrap with word awareness
-                const wrappedLines = this.wrapText(line, continuationAvailable);
-                
-                for (const wrappedLine of wrappedLines) {
-                    displayLines.push({
-                        prefix: continuationIndent,
-                        text: wrappedLine,
-                        textColor: textColor, // Use text color for message
-                        isContinuation: true
-                    });
-                }
+              displayLines.push({
+                prefix: continuationIndent,
+                text: wrappedLines[k],
+                textColor: textColor,
+                isContinuation: true
+              });
             }
+          }
+        } else {
+          const wrappedLines = this.wrapText(line, continuationAvailable);
+          
+          for (const wrappedLine of wrappedLines) {
+            displayLines.push({
+              prefix: continuationIndent,
+              text: wrappedLine,
+              textColor: textColor,
+              isContinuation: true
+            });
+          }
         }
+      }
     }
     
-    // Calculate which lines to show (show newest at bottom)
     const startIndex = Math.max(0, displayLines.length - messageLines);
     
-    // Draw messages
     for (let i = 0; i < messageLines; i++) {
-        // Position cursor
-        process.stdout.write(`\x1b[${messageStartLine + i};0H`);
+      process.stdout.write(`\x1b[${messageStartLine + i};0H`);
+      process.stdout.write(`${this.config.colors.border}│\x1b[0m`);
+      
+      if (startIndex + i < displayLines.length) {
+        const line = displayLines[startIndex + i];
+        process.stdout.write(line.prefix);
         
-        // Draw left border
-        process.stdout.write(`${this.config.colors.border}│\x1b[0m`);
-        
-        if (startIndex + i < displayLines.length) {
-            const line = displayLines[startIndex + i];
-            
-            // Write prefix (with label color already applied)
-            process.stdout.write(line.prefix);
-            
-            // Write text with message text color (PURPLE for bot text now)
-            if (line.textColor) {
-                process.stdout.write(`${line.textColor}${line.text}\x1b[0m`);
-            } else {
-                process.stdout.write(line.text);
-            }
-            
-            // Calculate fill to right border
-            const contentLength = this.stripAnsi(line.prefix + line.text).length;
-            const fillLength = this.width - contentLength - 2;
-            
-            if (fillLength > 0) {
-                process.stdout.write(' '.repeat(fillLength));
-            }
+        if (line.textColor) {
+          process.stdout.write(`${line.textColor}${line.text}\x1b[0m`);
         } else {
-            // Empty line
-            process.stdout.write(' '.repeat(this.width - 2));
+          process.stdout.write(line.text);
         }
         
-        // Draw right border
-        process.stdout.write(`${this.config.colors.border}│\x1b[0m`);
+        const contentLength = this.stripAnsi(line.prefix + line.text).length;
+        const fillLength = this.width - contentLength - 2;
+        
+        if (fillLength > 0) {
+          process.stdout.write(' '.repeat(fillLength));
+        }
+      } else {
+        process.stdout.write(' '.repeat(this.width - 2));
+      }
+      
+      process.stdout.write(`${this.config.colors.border}│\x1b[0m`);
     }
     
     this.redrawBottomArea();
-}
+  }
 
-// Helper method to strip ANSI color codes for length calculation
-stripAnsi(str) {
+  stripAnsi(str) {
     return str.replace(/\x1b\[[0-9;]*m/g, '');
-}
+  }
+
+  wrapText(text, maxWidth) {
+    if (text.length <= maxWidth) return [text];
+    
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+    
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      
+      if (testLine.length <= maxWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+        
+        if (word.length > maxWidth) {
+          let remainingWord = word;
+          while (remainingWord.length > maxWidth) {
+            lines.push(remainingWord.substring(0, maxWidth - 1) + '-');
+            remainingWord = remainingWord.substring(maxWidth - 1);
+          }
+          currentLine = remainingWord;
+        } else {
+          currentLine = word;
+        }
+      }
+    }
+    
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    
+    return lines;
+  }
   
   redrawBottomArea() {
     const separatorLine = this.height - 3;
     const inputLine = this.height - 2;
     const bottomLine = this.height - 1;
     
-    // Save cursor position
     process.stdout.write(`\x1b[s`);
     
-    // Redraw separator line
     process.stdout.write(`\x1b[${separatorLine};0H`);
     process.stdout.write(`${this.config.colors.border}├`);
     for (let i = 0; i < this.width - 2; i++) process.stdout.write('─');
     process.stdout.write(`┤\x1b[0m`);
     
-    // Redraw input line
     this.redrawInput();
     
-    // Redraw bottom border
     process.stdout.write(`\x1b[${bottomLine};0H`);
     process.stdout.write(`${this.config.colors.border}└`);
     for (let i = 0; i < this.width - 2; i++) process.stdout.write('─');
     process.stdout.write(`┘\x1b[0m`);
     
-    // Restore cursor position
     process.stdout.write(`\x1b[u`);
   }
   
   redrawInput() {
     const inputLine = this.height - 2;
     
-    // Position cursor at input line
     process.stdout.write(`\x1b[${inputLine};0H`);
-    
-    // Draw left border
     process.stdout.write(`${this.config.colors.border}│\x1b[0m`);
-    
-    // Input prompt
     process.stdout.write(` ${this.config.colors.prompt}➤\x1b[0m `);
     
-    // Available width for input
-    const availableWidth = this.width - 5; // border(1) + space(1) + prompt(2) + border(1) = 5
+    const availableWidth = this.width - 5;
     
-    // Prepare display text
     let displayInput = this.inputLine;
     let cursorPos = this.cursorPosition;
     
@@ -603,19 +591,15 @@ stripAnsi(str) {
       cursorPos = Math.max(0, this.cursorPosition - offset - 1);
     }
     
-    // Split input into parts
     const beforeCursor = displayInput.slice(0, cursorPos);
     const cursorChar = displayInput[cursorPos] || ' ';
     const afterCursor = displayInput.slice(cursorPos + 1);
     
-    // Calculate used width
     const usedWidth = beforeCursor.length + afterCursor.length + 1;
     const remainingSpace = availableWidth - usedWidth;
     
-    // Write input with cursor
     process.stdout.write(beforeCursor);
     
-    // Blinking cursor
     if (Date.now() % 1200 < 600) {
       process.stdout.write(`${this.config.colors.cursor}${cursorChar}\x1b[0m`);
     } else {
@@ -624,11 +608,9 @@ stripAnsi(str) {
     
     process.stdout.write(afterCursor);
     
-    // Fill remaining space and show bot indicator if needed
     if (remainingSpace > 0) {
       if (this.isBotTyping && remainingSpace >= 5) {
-        // Show bot indicator on the right
-        const spaces = remainingSpace - 5; // "[bot]" is 5 chars
+        const spaces = remainingSpace - 5;
         if (spaces > 0) process.stdout.write(' '.repeat(spaces));
         process.stdout.write(`${this.config.colors.botIndicator}[bot]\x1b[0m`);
       } else {
@@ -636,18 +618,15 @@ stripAnsi(str) {
       }
     }
     
-    // Draw right border
     process.stdout.write(`${this.config.colors.border}│\x1b[0m`);
     
-    // Ensure bottom border is redrawn after input
     const bottomLine = this.height - 1;
     process.stdout.write(`\x1b[${bottomLine};0H`);
     process.stdout.write(`${this.config.colors.border}└`);
     for (let i = 0; i < this.width - 2; i++) process.stdout.write('─');
     process.stdout.write(`┘\x1b[0m`);
     
-    // Position cursor for typing
-    const cursorX = 3 + cursorPos; // border(1) + space(1) + prompt(1) = 3
+    const cursorX = 3 + cursorPos;
     process.stdout.write(`\x1b[${inputLine};${cursorX}H`);
   }
   
@@ -658,27 +637,21 @@ stripAnsi(str) {
     process.stdin.setRawMode(false);
     this.rl.close();
     
-    // Remove all listeners to prevent memory leaks
     process.removeAllListeners('SIGINT');
     
-    // Call onExit callback if provided
     if (typeof this.config.onExit === 'function') {
-        // Use setTimeout to break the call stack
-        setTimeout(() => {
-            this.config.onExit(this);
-        }, 0);
+      setTimeout(() => {
+        this.config.onExit(this);
+      }, 0);
     }
     
-    // Remove reference to this instance
     if (activeChatInstance === this) {
-        activeChatInstance = null;
+      activeChatInstance = null;
     }
-}
+  }
   
   start() {
     activeChatInstance = this;
-    //this.addMessage('System', this.config.messages.welcome, this.config.colors.system);
-    //this.addMessage('Bot', this.config.messages.initialBot, this.config.colors.bot);
     
     process.stdout.on('resize', () => {
       this.width = process.stdout.columns || 80;
@@ -688,24 +661,13 @@ stripAnsi(str) {
     
     setInterval(() => this.redrawInput(), 600);
     
-    // Emit start event
     this.emit('started');
   }
   
-  /**
-   * Send a message programmatically
-   * @param {string} sender - Sender name
-   * @param {string} message - Message text
-   * @param {string} color - Color code (optional)
-   */
   sendMessage(sender, message, color = '\x1b[36m') {
     this.addMessage(sender, message, color);
   }
   
-  /**
-   * Simulate bot typing and response
-   * @param {string} response - Response text to stream
-   */
   async simulateBotResponse(response) {
     this.isBotTyping = true;
     this.redrawInput();
@@ -737,25 +699,22 @@ stripAnsi(str) {
   }
 }
 
-// Remove the global SIGINT handler and replace with this
 let activeChatInstance = null;
 
-// Handle SIGINT globally
 process.on('SIGINT', () => {
-    if (activeChatInstance) {
-        activeChatInstance.cleanup();
-        activeChatInstance = null;
-    } else {
-        process.stdout.write('\x1b[2J\x1b[3J\x1b[0;0H');
-        process.stdout.write('\x1b[?25h');
-        process.stdout.write('\x1b[0m');
-        process.stdin.setRawMode(false);
-        console.log('\n✨ Goodbye! ✨');
-        process.exit();
-    }
+  if (activeChatInstance) {
+    activeChatInstance.cleanup();
+    activeChatInstance = null;
+  } else {
+    process.stdout.write('\x1b[2J\x1b[3J\x1b[0;0H');
+    process.stdout.write('\x1b[?25h');
+    process.stdout.write('\x1b[0m');
+    process.stdin.setRawMode(false);
+    console.log('\n✨ Goodbye! ✨');
+    process.exit();
+  }
 });
 
-// If script is executed directly (not imported), run with default configuration
 if (import.meta.url === `file://${process.argv[1]}`) {
   const chat = new ChatHUD();
   chat.start();
