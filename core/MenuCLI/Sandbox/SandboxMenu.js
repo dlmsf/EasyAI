@@ -121,7 +121,6 @@ options : [
             // Store the complete response as we build it
             let fullResponse = ''
             
-            // IMPORTANT: Return a promise that resolves when streaming is complete
             return new Promise(async (resolve) => {
                 const result = await ai.Chat(chat.Historical, {
                     tokenCallback: async (token) => {
@@ -137,7 +136,6 @@ options : [
                         
                         if (content) {
                             fullResponse += content
-                            // Use the displayToken function from ChatHUD
                             await displayToken(content)
                         }
                     },
@@ -153,7 +151,6 @@ options : [
                     chat.NewMessage('assistant', result.full_text)
                 }
                 
-                // Resolve with the full response
                 resolve(fullResponse)
             })
         }
@@ -164,14 +161,17 @@ options : [
             colors: {
                 border: '\x1b[38;5;39m',
                 title: '\x1b[1;38;5;220m',
-                user: '\x1b[32m',
-                bot: '\x1b[35m',
-                system: '\x1b[33m',
+                user: '\x1b[32m',           // Green for user label
+                userText: '\x1b[37m',       // White for user message text
+                bot: '\x1b[36m',           
+                botText: '\x1b[35m',        // White for bot message text
+                system: '\x1b[33m',         // Yellow for system label
+                systemText: '\x1b[37m',     // White for system message text
                 timestamp: '\x1b[90m',
                 prompt: '\x1b[38;5;220m',
                 cursor: '\x1b[48;5;220;30m',
                 botIndicator: '\x1b[3;90m'
-            },
+              },
             messages: {
                 welcome: '🚀 Welcome to the New Terminal Chat!',
                 initialBot: 'Hello! How can I help you today?',
@@ -189,8 +189,15 @@ options : [
             }
         })
         
+        // Add a one-time handler for this specific chat instance
+        const sigintHandler = () => {
+            chatHUD.cleanup();
+            process.removeListener('SIGINT', sigintHandler);
+        };
+        process.once('SIGINT', sigintHandler);
+        
         // Start the chat
-        chatHUD.start()
+        chatHUD.start();
     }
 },
     {

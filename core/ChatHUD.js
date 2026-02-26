@@ -21,15 +21,20 @@ class ChatHUD extends EventEmitter {
   constructor(config = {}) {
     super();
     
+    this.customSigintHandler = config.onSigint || null;
+
     // Configuration with defaults
     this.config = {
       messageProcessor: null,
       colors: {
         border: '\x1b[38;5;39m',
         title: '\x1b[1;38;5;220m',
-        user: '\x1b[32m',
-        bot: '\x1b[35m',
-        system: '\x1b[33m',
+        user: '\x1b[32m',          
+        userText: '\x1b[37m',      
+        bot: '\x1b[36m',           
+        botText: '\x1b[35m',      
+        system: '\x1b[33m',       
+        systemText: '\x1b[37m',     
         timestamp: '\x1b[90m',
         prompt: '\x1b[38;5;220m',
         cursor: '\x1b[48;5;220;30m',
@@ -240,6 +245,7 @@ class ChatHUD extends EventEmitter {
     processNext();
   }
   
+  // In ChatHUD.js - Update the generateBotResponse method
   async generateBotResponse(userMessage) {
     this.isBotTyping = true;
     this.redrawInput();
@@ -249,9 +255,7 @@ class ChatHUD extends EventEmitter {
     // Use custom message processor if provided
     if (typeof this.config.messageProcessor === 'function') {
         // Custom processor handles streaming via displayToken
-        // We don't need to create a new message here because displayToken handles it
         await this.config.messageProcessor(userMessage, this.displayToken.bind(this));
-        // IMPORTANT: Don't do anything else - the processor handles everything
     } else {
         // Default behavior when no custom processor
         const response = this.getDefaultBotResponse(userMessage);
@@ -265,7 +269,8 @@ class ChatHUD extends EventEmitter {
             sender: 'Bot',
             text: '',
             timestamp,
-            color: this.config.colors.bot,
+            labelColor: this.config.colors.bot,
+            textColor: this.config.colors.botText,
             lines: []
         });
         
@@ -277,6 +282,9 @@ class ChatHUD extends EventEmitter {
             currentText += response[i];
             this.messages[msgIndex].text = currentText;
             this.messages[msgIndex].lines = currentText.split('\n');
+            // Ensure colors persist
+            this.messages[msgIndex].labelColor = this.config.colors.bot;
+            this.messages[msgIndex].textColor = this.config.colors.botText;
             this.redrawMessages();
             await new Promise(resolve => setTimeout(resolve, 40 + Math.random() * 40));
         }
@@ -349,15 +357,21 @@ wrapText(text, maxWidth) {
             sender: 'Bot',
             text: token,
             timestamp,
-            color: this.config.colors.bot
+            labelColor: this.config.colors.bot,  // Store label color separately
+            textColor: this.config.colors.botText,  // Store text color separately
+            lines: token.split('\n')
         });
     } else {
         // Append to existing bot message
         lastMessage.text += token;
-    }
-    
-    // Update lines after text change
-    if (lastMessage) {
+        // Ensure colors are set
+        if (!lastMessage.labelColor) {
+            lastMessage.labelColor = this.config.colors.bot;
+        }
+        if (!lastMessage.textColor) {
+            lastMessage.textColor = this.config.colors.botText;
+        }
+        // Update lines after text change
         lastMessage.lines = lastMessage.text.split('\n');
     }
     
@@ -388,11 +402,26 @@ wrapText(text, maxWidth) {
     const timestamp = new Date().toLocaleTimeString('en-US', { 
         hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
+    
+    // Determine colors based on sender
+    let labelColor, textColor;
+    if (sender === 'Bot') {
+        labelColor = this.config.colors.bot;
+        textColor = this.config.colors.botText;
+    } else if (sender === 'You') {
+        labelColor = this.config.colors.user;
+        textColor = this.config.colors.userText;
+    } else {
+        labelColor = this.config.colors.system;
+        textColor = this.config.colors.systemText;
+    }
+    
     this.messages.push({ 
         sender, 
         text, 
         timestamp, 
-        color,
+        labelColor,  // Store label color
+        textColor,   // Store text color
         lines: text.split('\n')
     });
     this.redrawMessages();
@@ -410,10 +439,21 @@ redrawMessages() {
         const msg = this.messages[i];
         const msgLines = msg.lines || msg.text.split('\n');
         
+        // Get the colors - with fallbacks to maintain backward compatibility
+        const labelColor = msg.labelColor || 
+                          (msg.sender === 'Bot' ? this.config.colors.bot : 
+                           msg.sender === 'You' ? this.config.colors.user : 
+                           this.config.colors.system);
+        
+        const textColor = msg.textColor || 
+                         (msg.sender === 'Bot' ? this.config.colors.botText : 
+                          msg.sender === 'You' ? this.config.colors.userText : 
+                          this.config.colors.systemText) || '\x1b[37m'; // Default to white if not set
+        
         // Calculate prefix for first line
         const prefix = `[${msg.timestamp}] ${msg.sender}: `;
         const prefixLength = this.stripAnsi(prefix).length;
-        const firstLineAvailable = this.width - prefixLength - 4;
+        const firstLineAvailable = this.width - prefixLength - 4; // -4 for borders and spacing
         const continuationIndent = ' '.repeat(prefixLength - 1);
         const continuationAvailable = this.width - continuationIndent.length - 4;
         
@@ -421,8 +461,8 @@ redrawMessages() {
             const line = msgLines[j];
             
             if (j === 0) {
-                // First line includes prefix
-                const coloredPrefix = `${this.config.colors.timestamp}[${msg.timestamp}]\x1b[0m ${msg.color}${msg.sender}:\x1b[0m `;
+                // First line includes prefix with label color
+                const coloredPrefix = `${this.config.colors.timestamp}[${msg.timestamp}]\x1b[0m ${labelColor}${msg.sender}:\x1b[0m `;
                 
                 // Wrap the first line with word awareness
                 const wrappedLines = this.wrapText(line, firstLineAvailable);
@@ -433,6 +473,7 @@ redrawMessages() {
                         displayLines.push({
                             prefix: coloredPrefix,
                             text: wrappedLines[k],
+                            textColor: textColor, // Use text color for message
                             isFirstOfMessage: true
                         });
                     } else {
@@ -440,6 +481,7 @@ redrawMessages() {
                         displayLines.push({
                             prefix: continuationIndent,
                             text: wrappedLines[k],
+                            textColor: textColor, // Use text color for message
                             isContinuation: true
                         });
                     }
@@ -453,6 +495,7 @@ redrawMessages() {
                     displayLines.push({
                         prefix: continuationIndent,
                         text: wrappedLine,
+                        textColor: textColor, // Use text color for message
                         isContinuation: true
                     });
                 }
@@ -474,11 +517,15 @@ redrawMessages() {
         if (startIndex + i < displayLines.length) {
             const line = displayLines[startIndex + i];
             
-            // Write prefix (with colors)
+            // Write prefix (with label color already applied)
             process.stdout.write(line.prefix);
             
-            // Write text
-            process.stdout.write(line.text);
+            // Write text with message text color (PURPLE for bot text now)
+            if (line.textColor) {
+                process.stdout.write(`${line.textColor}${line.text}\x1b[0m`);
+            } else {
+                process.stdout.write(line.text);
+            }
             
             // Calculate fill to right border
             const contentLength = this.stripAnsi(line.prefix + line.text).length;
@@ -620,6 +667,11 @@ stripAnsi(str) {
         setTimeout(() => {
             this.config.onExit(this);
         }, 0);
+    }
+    
+    // Remove reference to this instance
+    if (activeChatInstance === this) {
+        activeChatInstance = null;
     }
 }
   
