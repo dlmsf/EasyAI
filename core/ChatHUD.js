@@ -6,8 +6,73 @@ import EventEmitter from 'events';
 /**
  * Robust Terminal Chat Interface with full customization support
  * Fixed: Messages sent while bot is typing are queued and processed together after response completes
+ * 
+ * @class ChatHUD
+ * @extends EventEmitter
+ * 
+ * @example
+ * // Basic usage
+ * const chat = new ChatHUD();
+ * chat.start();
+ * 
+ * @example
+ * // Custom configuration
+ * const chat = new ChatHUD({
+ *   title: 'My Custom Chat',
+ *   colors: {
+ *     border: '\x1b[38;5;82m',
+ *     title: '\x1b[1;38;5;198m'
+ *   },
+ *   messageProcessor: async (message, displayToken, messageHistory) => {
+ *     const response = await myAI.generate(message);
+ *     for (const char of response) {
+ *       displayToken(char);
+ *       await sleep(50);
+ *     }
+ *   }
+ * });
+ * chat.start();
+ * 
+ * @example
+ * // Using events
+ * const chat = new ChatHUD();
+ * chat.on('userMessage', (msg) => console.log('User said:', msg));
+ * chat.on('botResponseStarted', (msgs) => console.log('Processing:', msgs));
+ * chat.on('botResponseCompleted', (response) => console.log('Bot responded:', response));
+ * chat.start();
+ * 
+ * @example
+ * // Dynamic title update
+ * const chat = new ChatHUD({ title: 'Loading...' });
+ * chat.start();
+ * setTimeout(() => chat.setTitle('Chat with AI'), 2000);
  */
 class ChatHUD extends EventEmitter {
+  /**
+   * Creates a new ChatHUD instance
+   * @param {Object} config - Configuration object
+   * @param {string} [config.title='Terminal Chat'] - Title displayed in the header
+   * @param {Function} [config.messageProcessor] - Custom message processor for bot responses
+   * @param {Object} [config.colors] - Color configuration for different UI elements
+   * @param {string} [config.colors.border='\x1b[38;5;39m'] - Color for borders
+   * @param {string} [config.colors.title='\x1b[1;38;5;220m'] - Color for title
+   * @param {string} [config.colors.user='\x1b[32m'] - Color for user label
+   * @param {string} [config.colors.userText='\x1b[37m'] - Color for user message text
+   * @param {string} [config.colors.bot='\x1b[36m'] - Color for bot label
+   * @param {string} [config.colors.botText='\x1b[35m'] - Color for bot message text
+   * @param {string} [config.colors.system='\x1b[33m'] - Color for system label
+   * @param {string} [config.colors.systemText='\x1b[37m'] - Color for system message text
+   * @param {string} [config.colors.timestamp='\x1b[90m'] - Color for timestamps
+   * @param {string} [config.colors.prompt='\x1b[38;5;220m'] - Color for input prompt
+   * @param {string} [config.colors.cursor='\x1b[48;5;220;30m'] - Color for cursor
+   * @param {string} [config.colors.botIndicator='\x1b[3;90m'] - Color for typing indicator
+   * @param {Object} [config.messages] - Default message templates
+   * @param {string} [config.messages.welcome='🚀 Welcome to Terminal Chat!'] - Welcome message
+   * @param {string} [config.messages.initialBot='Hello! How can I help you?'] - Initial bot message
+   * @param {Function} [config.onInit] - Callback fired after initialization
+   * @param {Function} [config.onExit] - Callback fired before exit
+   * @param {Function} [config.onSigint] - Custom SIGINT handler
+   */
   constructor(config = {}) {
     super();
     
@@ -35,22 +100,40 @@ class ChatHUD extends EventEmitter {
         initialBot: 'Hello! How can I help you?',
         goodbye: '\n✨ Goodbye! ✨'
       },
-      title: 'Terminal Chat', // Changed default title
+      title: 'Terminal Chat',
       onInit: null,
       onExit: null,
       ...config
     };
 
+    /** @property {Array} messages - Array of message objects in the chat history */
     this.messages = [];
+    
+    /** @property {string} inputLine - Current input line text */
     this.inputLine = '';
+    
+    /** @property {number} cursorPosition - Current cursor position in input line */
     this.cursorPosition = 0;
+    
+    /** @property {boolean} isBotTyping - Whether bot is currently generating a response */
     this.isBotTyping = false;
-    this.messageQueue = []; // Queue of messages to be processed
-    this.pendingMessages = []; // Messages received while bot is typing
+    
+    /** @property {Array} messageQueue - Queue of messages waiting to be processed */
+    this.messageQueue = [];
+    
+    /** @property {Array} pendingMessages - Messages received while bot is typing */
+    this.pendingMessages = [];
+    
+    /** @property {boolean} isProcessing - Whether message queue is being processed */
     this.isProcessing = false;
+    
+    /** @property {number} width - Current terminal width in columns */
     this.width = process.stdout.columns || 80;
+    
+    /** @property {number} height - Current terminal height in rows */
     this.height = process.stdout.rows || 24;
     
+    /** @property {readline.Interface} rl - Readline interface */
     this.rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout
@@ -72,11 +155,19 @@ class ChatHUD extends EventEmitter {
     }
   }
   
+  /**
+   * Clears the terminal screen
+   * @private
+   */
   clearScreen() {
     process.stdout.write('\x1b[2J\x1b[3J\x1b[H');
     process.stdout.write('\x1b[?25l');
   }
   
+  /**
+   * Redraws the complete chat interface including borders, messages, and input
+   * @private
+   */
   drawFullInterface() {
     this.width = process.stdout.columns || 80;
     this.height = process.stdout.rows || 24;
@@ -131,12 +222,21 @@ class ChatHUD extends EventEmitter {
     this.redrawInput();
   }
 
-  // Add method to update title dynamically
+  /**
+   * Updates the chat interface title dynamically
+   * @param {string} newTitle - New title to display
+   * @example
+   * chat.setTitle('Connected to AI Assistant');
+   */
   setTitle(newTitle) {
     this.config.title = newTitle;
     this.drawFullInterface();
   }
   
+  /**
+   * Sets up keyboard input handlers for the chat interface
+   * @private
+   */
   setupInputHandlers() {
     let escapeSequence = '';
     let inEscape = false;
@@ -209,6 +309,10 @@ class ChatHUD extends EventEmitter {
     });
   }
   
+  /**
+   * Handles Enter key press - processes user input
+   * @private
+   */
   handleEnter() {
     if (this.inputLine.trim()) {
       const userMessage = this.inputLine;
@@ -234,6 +338,10 @@ class ChatHUD extends EventEmitter {
     }
   }
   
+  /**
+   * Processes the message queue, handling bot responses
+   * @private
+   */
   processQueue() {
     if (this.isProcessing || this.messageQueue.length === 0 || this.isBotTyping) return;
     
@@ -257,120 +365,132 @@ class ChatHUD extends EventEmitter {
     processNext();
   }
   
-  // In ChatHUD.js - Update generateBotResponse to ensure we track the current bot message
-
-async generateBotResponse(messages) {
-  this.isBotTyping = true;
-  this.redrawInput();
-  
-  // Create the bot message container BEFORE streaming starts
-  const timestamp = new Date().toLocaleTimeString('en-US', { 
-      hour: '2-digit', minute: '2-digit', second: '2-digit'
-  });
-  
-  const botMessage = {
-      sender: 'Bot',
-      text: '',
-      timestamp,
-      timestamp_raw: Date.now(),
-      labelColor: this.config.colors.bot,
-      textColor: this.config.colors.botText,
-      lines: []
-  };
-  
-  this.messages.push(botMessage);
-  this.redrawMessages();
-  
-  // Use custom message processor if provided
-  if (typeof this.config.messageProcessor === 'function') {
-      // Pass all messages that should be processed together
-      const triggerMessage = messages[messages.length - 1];
-      await this.config.messageProcessor(triggerMessage, this.displayToken.bind(this), messages);
-  } else {
-      // Default behavior
-      const response = this.getDefaultBotResponse(messages.join(' '));
-      
-      this.emit('botResponseStarted', messages);
-      
-      let currentText = '';
-      for (let i = 0; i < response.length; i++) {
-          currentText += response[i];
-          
-          // Update the LAST bot message (which should be the one we just created)
-          const lastBotMessage = this.messages[this.messages.length - 1];
-          if (lastBotMessage && lastBotMessage.sender === 'Bot') {
-              lastBotMessage.text = currentText;
-              lastBotMessage.lines = currentText.split('\n');
-              lastBotMessage.labelColor = this.config.colors.bot;
-              lastBotMessage.textColor = this.config.colors.botText;
-          }
-          
-          this.redrawMessages();
-          await new Promise(resolve => setTimeout(resolve, 40 + Math.random() * 40));
-      }
-      
-      this.emit('botResponseCompleted', response);
+  /**
+   * Generates a bot response for the given messages
+   * @param {Array<string>} messages - Array of messages to respond to
+   * @private
+   */
+  async generateBotResponse(messages) {
+    this.isBotTyping = true;
+    this.redrawInput();
+    
+    // Create the bot message container BEFORE streaming starts
+    const timestamp = new Date().toLocaleTimeString('en-US', { 
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    
+    const botMessage = {
+        sender: 'Bot',
+        text: '',
+        timestamp,
+        timestamp_raw: Date.now(),
+        labelColor: this.config.colors.bot,
+        textColor: this.config.colors.botText,
+        lines: []
+    };
+    
+    this.messages.push(botMessage);
+    this.redrawMessages();
+    
+    // Use custom message processor if provided
+    if (typeof this.config.messageProcessor === 'function') {
+        // Pass all messages that should be processed together
+        const triggerMessage = messages[messages.length - 1];
+        await this.config.messageProcessor(triggerMessage, this.displayToken.bind(this), messages);
+    } else {
+        // Default behavior
+        const response = this.getDefaultBotResponse(messages.join(' '));
+        
+        this.emit('botResponseStarted', messages);
+        
+        let currentText = '';
+        for (let i = 0; i < response.length; i++) {
+            currentText += response[i];
+            
+            // Update the LAST bot message (which should be the one we just created)
+            const lastBotMessage = this.messages[this.messages.length - 1];
+            if (lastBotMessage && lastBotMessage.sender === 'Bot') {
+                lastBotMessage.text = currentText;
+                lastBotMessage.lines = currentText.split('\n');
+                lastBotMessage.labelColor = this.config.colors.bot;
+                lastBotMessage.textColor = this.config.colors.botText;
+            }
+            
+            this.redrawMessages();
+            await new Promise(resolve => setTimeout(resolve, 40 + Math.random() * 40));
+        }
+        
+        this.emit('botResponseCompleted', response);
+    }
+    
+    this.isBotTyping = false;
+    this.redrawInput();
+    
+    // Check if there are more messages in queue
+    if (this.messageQueue.length > 0) {
+        this.processQueue();
+    }
   }
   
-  this.isBotTyping = false;
-  this.redrawInput();
-  
-  // Check if there are more messages in queue
-  if (this.messageQueue.length > 0) {
-      this.processQueue();
-  }
-}
-  
-  // In ChatHUD.js - Fix the displayToken method
-
-async displayToken(token) {
-  // Find the last bot message that is currently being streamed
-  let lastBotMessage = null;
-  
-  // Look through messages from the end to find the last incomplete bot message
-  for (let i = this.messages.length - 1; i >= 0; i--) {
-      if (this.messages[i].sender === 'Bot') {
-          lastBotMessage = this.messages[i];
-          break;
-      }
-  }
-  
-  const timestamp = new Date().toLocaleTimeString('en-US', { 
-      hour: '2-digit', minute: '2-digit', second: '2-digit'
-  });
-  
-  // If no bot message exists or the last bot message is complete (has a period at the end or is older than 2 seconds), create new one
-  const now = Date.now();
-  const messageAge = lastBotMessage ? now - (lastBotMessage.timestamp_raw || 0) : Infinity;
-  
-  if (!lastBotMessage || messageAge > 2000) { // If message is older than 2 seconds, it's probably complete
-      // Create new bot message
-      const newMessage = {
-          sender: 'Bot',
-          text: token,
-          timestamp,
-          timestamp_raw: now,
-          labelColor: this.config.colors.bot,
-          textColor: this.config.colors.botText,
-          lines: token.split('\n')
-      };
-      this.messages.push(newMessage);
-  } else {
-      // Append to existing bot message
-      lastBotMessage.text += token;
-      lastBotMessage.timestamp_raw = now; // Update timestamp
-      if (!lastBotMessage.labelColor) {
-          lastBotMessage.labelColor = this.config.colors.bot;
-      }
-      if (!lastBotMessage.textColor) {
-          lastBotMessage.textColor = this.config.colors.botText;
-      }
-      lastBotMessage.lines = lastBotMessage.text.split('\n');
+  /**
+   * Displays a single token/character in the bot's response (used for streaming)
+   * @param {string} token - Character or token to display
+   * @private
+   */
+  async displayToken(token) {
+    // Find the last bot message that is currently being streamed
+    let lastBotMessage = null;
+    
+    // Look through messages from the end to find the last incomplete bot message
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+        if (this.messages[i].sender === 'Bot') {
+            lastBotMessage = this.messages[i];
+            break;
+        }
+    }
+    
+    const timestamp = new Date().toLocaleTimeString('en-US', { 
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    
+    // If no bot message exists or the last bot message is complete (has a period at the end or is older than 2 seconds), create new one
+    const now = Date.now();
+    const messageAge = lastBotMessage ? now - (lastBotMessage.timestamp_raw || 0) : Infinity;
+    
+    if (!lastBotMessage || messageAge > 2000) { // If message is older than 2 seconds, it's probably complete
+        // Create new bot message
+        const newMessage = {
+            sender: 'Bot',
+            text: token,
+            timestamp,
+            timestamp_raw: now,
+            labelColor: this.config.colors.bot,
+            textColor: this.config.colors.botText,
+            lines: token.split('\n')
+        };
+        this.messages.push(newMessage);
+    } else {
+        // Append to existing bot message
+        lastBotMessage.text += token;
+        lastBotMessage.timestamp_raw = now; // Update timestamp
+        if (!lastBotMessage.labelColor) {
+            lastBotMessage.labelColor = this.config.colors.bot;
+        }
+        if (!lastBotMessage.textColor) {
+            lastBotMessage.textColor = this.config.colors.botText;
+        }
+        lastBotMessage.lines = lastBotMessage.text.split('\n');
+    }
+    
+    this.redrawMessages();
   }
   
-  this.redrawMessages();
-}
-  
+  /**
+   * Returns a default bot response based on the input message
+   * @param {string} message - User message to respond to
+   * @returns {string} Bot response
+   * @private
+   */
   getDefaultBotResponse(message) {
     const lowerMsg = message.toLowerCase();
     const responses = {
@@ -391,6 +511,13 @@ async displayToken(token) {
     }
   }
   
+  /**
+   * Adds a message to the chat display
+   * @param {string} sender - Message sender ('You', 'Bot', or system name)
+   * @param {string} text - Message content
+   * @param {string} [color] - Color code for the message (optional)
+   * @public
+   */
   addMessage(sender, text, color) {
     const timestamp = new Date().toLocaleTimeString('en-US', { 
       hour: '2-digit', minute: '2-digit', second: '2-digit'
@@ -419,6 +546,10 @@ async displayToken(token) {
     this.redrawMessages();
   }
   
+  /**
+   * Redraws the messages area of the interface
+   * @private
+   */
   redrawMessages() {
     const messageStartLine = 3;
     const messageLines = this.height - 7;
@@ -517,10 +648,23 @@ async displayToken(token) {
     this.redrawBottomArea();
   }
 
+  /**
+   * Removes ANSI color codes from a string
+   * @param {string} str - String with ANSI codes
+   * @returns {string} Clean string without ANSI codes
+   * @private
+   */
   stripAnsi(str) {
     return str.replace(/\x1b\[[0-9;]*m/g, '');
   }
 
+  /**
+   * Wraps text to fit within a specified width
+   * @param {string} text - Text to wrap
+   * @param {number} maxWidth - Maximum width per line
+   * @returns {Array<string>} Array of wrapped lines
+   * @private
+   */
   wrapText(text, maxWidth) {
     if (text.length <= maxWidth) return [text];
     
@@ -558,6 +702,10 @@ async displayToken(token) {
     return lines;
   }
   
+  /**
+   * Redraws the bottom area of the interface including input line
+   * @private
+   */
   redrawBottomArea() {
     const separatorLine = this.height - 3;
     const inputLine = this.height - 2;
@@ -580,6 +728,10 @@ async displayToken(token) {
     process.stdout.write(`\x1b[u`);
   }
   
+  /**
+   * Redraws the input line with current text and cursor
+   * @private
+   */
   redrawInput() {
     const inputLine = this.height - 2;
     
@@ -637,6 +789,10 @@ async displayToken(token) {
     process.stdout.write(`\x1b[${inputLine};${cursorX}H`);
   }
   
+  /**
+   * Cleans up terminal settings before exit
+   * @public
+   */
   cleanup() {
     process.stdout.write('\x1b[2J\x1b[3J\x1b[0;0H');
     process.stdout.write('\x1b[?25h');
@@ -657,6 +813,11 @@ async displayToken(token) {
     }
   }
   
+  /**
+   * Starts the chat interface
+   * @public
+   * @fires ChatHUD#started
+   */
   start() {
     activeChatInstance = this;
     
@@ -668,13 +829,29 @@ async displayToken(token) {
     
     setInterval(() => this.redrawInput(), 600);
     
+    /**
+     * Started event - fired when chat interface starts
+     * @event ChatHUD#started
+     */
     this.emit('started');
   }
   
+  /**
+   * Sends a message to be displayed in the chat
+   * @param {string} sender - Message sender
+   * @param {string} message - Message content
+   * @param {string} [color='\x1b[36m'] - Color for the message
+   * @public
+   */
   sendMessage(sender, message, color = '\x1b[36m') {
     this.addMessage(sender, message, color);
   }
   
+  /**
+   * Simulates a bot typing response (for testing)
+   * @param {string} response - Response to simulate
+   * @public
+   */
   async simulateBotResponse(response) {
     this.isBotTyping = true;
     this.redrawInput();
@@ -706,8 +883,13 @@ async displayToken(token) {
   }
 }
 
+/** @type {ChatHUD|null} - Currently active chat instance */
 let activeChatInstance = null;
 
+/**
+ * Global SIGINT (Ctrl+C) handler
+ * @private
+ */
 process.on('SIGINT', () => {
   if (activeChatInstance) {
     activeChatInstance.cleanup();
@@ -721,6 +903,10 @@ process.on('SIGINT', () => {
   }
 });
 
+/**
+ * Self-executing code when run directly
+ * @private
+ */
 if (import.meta.url === `file://${process.argv[1]}`) {
   const chat = new ChatHUD();
   chat.start();
