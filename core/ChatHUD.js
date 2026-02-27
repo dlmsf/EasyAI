@@ -35,6 +35,7 @@ class ChatHUD extends EventEmitter {
         initialBot: 'Hello! How can I help you?',
         goodbye: '\n✨ Goodbye! ✨'
       },
+      title: 'Terminal Chat', // Changed default title
       onInit: null,
       onExit: null,
       ...config
@@ -87,9 +88,9 @@ class ChatHUD extends EventEmitter {
     for (let i = 0; i < this.width - 2; i++) process.stdout.write('─');
     process.stdout.write(`┐\x1b[0m\n`);
     
-    // Draw title
+    // Draw title - now using config.title
     process.stdout.write(`${this.config.colors.border}│\x1b[0m`);
-    const title = ' ROBUST TERMINAL CHAT ';
+    const title = ` ${this.config.title} `;
     const padding = this.width - title.length - 2;
     const leftPad = Math.floor(padding / 2);
     const rightPad = padding - leftPad;
@@ -128,6 +129,12 @@ class ChatHUD extends EventEmitter {
     
     this.redrawMessages();
     this.redrawInput();
+  }
+
+  // Add method to update title dynamically
+  setTitle(newTitle) {
+    this.config.title = newTitle;
+    this.drawFullInterface();
   }
   
   setupInputHandlers() {
@@ -710,7 +717,6 @@ process.on('SIGINT', () => {
     process.stdout.write('\x1b[?25h');
     process.stdout.write('\x1b[0m');
     process.stdin.setRawMode(false);
-    console.log('\n✨ Goodbye! ✨');
     process.exit();
   }
 });

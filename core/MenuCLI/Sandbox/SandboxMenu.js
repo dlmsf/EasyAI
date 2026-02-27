@@ -196,7 +196,8 @@ options : [
                     output: process.stdout
                 });
                 MenuCLI.displayMenu(SandboxMenu, { props: props })
-            }
+            },
+            title : 'EasyAI'
         })
         
         // Add a one-time handler for this specific chat instance
