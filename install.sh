@@ -315,7 +315,8 @@ show_progress() {
     # Check for user input with timeout
     if read -t 0.1 -n 1 -s input 2>/dev/null; then
       if [ "$input" = "x" ]; then
-        printf "\nSkipping step...\n"
+        printf "
+Skipping step...\n"
         kill "$pid" 2>/dev/null
         wait "$pid" 2>/dev/null
         break
@@ -682,22 +683,16 @@ check_installed() {
 }
 
 # =============================================================================
-# FUNCTION: Check if sample model should be moved
+# FUNCTION: Check if model_example.gguf exists in installation directory
 # =============================================================================
-check_sample_model_needed() {
-  # Check if models directory exists in installation directory
-  if [ -d "$INSTALL_DIR/models" ]; then
-    # Check if model_example.gguf exists in models directory
-    if [ -f "$INSTALL_DIR/models/model_example.gguf" ]; then
-      log_message "Model model_example.gguf already exists in $INSTALL_DIR/models. Skipping sample_model move."
-      return 1
-    else
-      log_message "Models directory exists but model_example.gguf not found. Sample_model will be moved."
-      return 0
-    fi
-  else
-    log_message "Models directory not found. Sample_model will be moved."
+check_model_exists() {
+  # Check if model_example.gguf exists in installation directory models folder
+  if [ -f "$INSTALL_DIR/models/model_example.gguf" ]; then
+    log_message "Model model_example.gguf detected in $INSTALL_DIR/models"
     return 0
+  else
+    log_message "Model model_example.gguf NOT found in $INSTALL_DIR/models"
+    return 1
   fi
 }
 
@@ -967,6 +962,25 @@ log_message "Copying files..."
 # Build exclude pattern from EXCLUDE_DIRS, now including .git conditionally
 EXCLUDE_PATTERN=$(build_exclude_pattern)
 
+# Check if model exists before copying files
+MODEL_EXISTS=false
+# For updates, check if model exists in preserved files
+if [ -d "$BACKUP_DIR" ] && [ -f "$BACKUP_DIR/models/model_example.gguf" ]; then
+  MODEL_EXISTS=true
+elif check_model_exists; then
+  MODEL_EXISTS=true
+fi
+
+if [ "$MODEL_EXISTS" = true ]; then
+  log_message "model_example.gguf exists, excluding sample_model from installation..."
+  # Add sample_model to exclusion pattern
+  if [ -z "$EXCLUDE_PATTERN" ]; then
+    EXCLUDE_PATTERN="-path ./core/Hot/sample_model"
+  else
+    EXCLUDE_PATTERN="$EXCLUDE_PATTERN -o -path ./core/Hot/sample_model"
+  fi
+fi
+
 if [ "$LOG_MODE" = true ]; then
   # Copy with verbose output for logging
   if [ -n "$EXCLUDE_PATTERN" ]; then
@@ -1049,23 +1063,20 @@ else
   log_message "The pm2 tar.gz file ($PM2_TAR_GZ) does not exist. Skipping extraction."
 fi
 
-# =============================================================================
-# CHECK AND HANDLE SAMPLE MODEL MOVE
-# =============================================================================
-if check_sample_model_needed; then
-  SAMPLE_MODEL_SOURCE="$REPO_DIR/core/Hot/sample_model"
-  SAMPLE_MODEL_DEST="$INSTALL_DIR/core/Hot/sample_model"
+# Check if we should handle sample_model specially (only if model doesn't exist)
+if check_model_exists; then
+  log_message "model_example.gguf exists in models directory. Skipping sample_model-related operations."
   
-  if [ -d "$SAMPLE_MODEL_SOURCE" ]; then
-    log_message "Moving sample_model directory to installation directory..."
-    mkdir -p "$(dirname "$SAMPLE_MODEL_DEST")"
-    cp -r "$SAMPLE_MODEL_SOURCE" "$SAMPLE_MODEL_DEST"
-    log_message "Sample_model directory moved successfully."
-  else
-    log_message "Sample_model source directory not found: $SAMPLE_MODEL_SOURCE"
+  # IMPORTANT: Remove the sample_model directory if it was accidentally copied
+  SAMPLE_MODEL_DIR="$INSTALL_DIR/core/Hot/sample_model"
+  if [ -d "$SAMPLE_MODEL_DIR" ]; then
+    log_message "Removing sample_model directory as model already exists..."
+    rm -rf "$SAMPLE_MODEL_DIR"
+    log_message "Sample_model directory removed."
   fi
 else
-  log_message "Skipping sample_model move as model_example.gguf already exists in models directory."
+  log_message "model_example.gguf not found, sample_model may be processed if exists..."
+  # If sample_model directory exists in installation, post-install script will run
 fi
 
 # Create command links (either wrappers or direct symlinks based on mode)
@@ -1075,16 +1086,6 @@ create_command_links "$INSTALL_DIR"
 # EXECUTE POST-INSTALL SCRIPTS (strictly from installation directory)
 # =============================================================================
 execute_post_install_scripts
-
-# =============================================================================
-# DELETE SAMPLE_MODEL DIRECTORY AFTER POST-INSTALL SCRIPTS
-# =============================================================================
-SAMPLE_MODEL_INSTALLED_DIR="$INSTALL_DIR/core/Hot/sample_model"
-if [ -d "$SAMPLE_MODEL_INSTALLED_DIR" ]; then
-  log_message "Deleting sample_model directory from installation directory after post-install scripts..."
-  rm -rf "$SAMPLE_MODEL_INSTALLED_DIR"
-  log_message "Sample_model directory deleted successfully."
-fi
 
 log_message "Setup complete. You can now use the commands globally."
 
