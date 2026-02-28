@@ -682,6 +682,26 @@ check_installed() {
 }
 
 # =============================================================================
+# FUNCTION: Check if sample model should be moved
+# =============================================================================
+check_sample_model_needed() {
+  # Check if models directory exists in installation directory
+  if [ -d "$INSTALL_DIR/models" ]; then
+    # Check if model_example.gguf exists in models directory
+    if [ -f "$INSTALL_DIR/models/model_example.gguf" ]; then
+      log_message "Model model_example.gguf already exists in $INSTALL_DIR/models. Skipping sample_model move."
+      return 1
+    else
+      log_message "Models directory exists but model_example.gguf not found. Sample_model will be moved."
+      return 0
+    fi
+  else
+    log_message "Models directory not found. Sample_model will be moved."
+    return 0
+  fi
+}
+
+# =============================================================================
 # FUNCTION: Execute pre-install hook scripts with the same command line
 # =============================================================================
 execute_pre_install_scripts() {
@@ -1029,6 +1049,25 @@ else
   log_message "The pm2 tar.gz file ($PM2_TAR_GZ) does not exist. Skipping extraction."
 fi
 
+# =============================================================================
+# CHECK AND HANDLE SAMPLE MODEL MOVE
+# =============================================================================
+if check_sample_model_needed; then
+  SAMPLE_MODEL_SOURCE="$REPO_DIR/core/Hot/sample_model"
+  SAMPLE_MODEL_DEST="$INSTALL_DIR/core/Hot/sample_model"
+  
+  if [ -d "$SAMPLE_MODEL_SOURCE" ]; then
+    log_message "Moving sample_model directory to installation directory..."
+    mkdir -p "$(dirname "$SAMPLE_MODEL_DEST")"
+    cp -r "$SAMPLE_MODEL_SOURCE" "$SAMPLE_MODEL_DEST"
+    log_message "Sample_model directory moved successfully."
+  else
+    log_message "Sample_model source directory not found: $SAMPLE_MODEL_SOURCE"
+  fi
+else
+  log_message "Skipping sample_model move as model_example.gguf already exists in models directory."
+fi
+
 # Create command links (either wrappers or direct symlinks based on mode)
 create_command_links "$INSTALL_DIR"
 
@@ -1036,6 +1075,16 @@ create_command_links "$INSTALL_DIR"
 # EXECUTE POST-INSTALL SCRIPTS (strictly from installation directory)
 # =============================================================================
 execute_post_install_scripts
+
+# =============================================================================
+# DELETE SAMPLE_MODEL DIRECTORY AFTER POST-INSTALL SCRIPTS
+# =============================================================================
+SAMPLE_MODEL_INSTALLED_DIR="$INSTALL_DIR/core/Hot/sample_model"
+if [ -d "$SAMPLE_MODEL_INSTALLED_DIR" ]; then
+  log_message "Deleting sample_model directory from installation directory after post-install scripts..."
+  rm -rf "$SAMPLE_MODEL_INSTALLED_DIR"
+  log_message "Sample_model directory deleted successfully."
+fi
 
 log_message "Setup complete. You can now use the commands globally."
 
