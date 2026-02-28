@@ -18,6 +18,7 @@ PRESERVE_DATA=true
 BUILD_MODE=false
 BUILD_COMMIT=""
 ONLINE_MODE=false          # New flag for forcing online installation
+MOVE_GIT=false             # New flag for moving .git directory
 
 # =============================================================================
 # SCRIPT HOOKS CONFIGURATION - Add shell scripts to execute during installation
@@ -214,6 +215,7 @@ show_help() {
   echo "  --build          Create build snapshot of specific commit (optional: provide commit hash)"
   echo "  --build <commit> Create build snapshot of specific commit hash"
   echo "  --online         Force online package installation using apt/apk instead of local .deb/.apk files"
+  echo "  --movegit        Move .git directory to installation directory (default: excluded)"
   echo ""
   echo "PRESERVED FILES:"
   echo "  The following files/directories are preserved during updates:"
@@ -223,12 +225,13 @@ show_help() {
   echo "  Use --no-preserve to disable this behavior"
   echo ""
   echo "EXCLUDED DIRECTORIES:"
-  echo "  The following directories are excluded from installation:"
+  echo "  The following directories are excluded from installation by default:"
   for item in $EXCLUDE_DIRS; do
     if [ -n "$item" ]; then
       echo "  - $item"
     fi
   done
+  echo "  Use --movegit to include .git directory in installation"
   echo ""
   echo "COMMANDS CREATED:"
   echo "  webgpt           WebGPT interface"
@@ -269,6 +272,7 @@ show_help() {
   echo "  Build latest commit:       $0 --build"
   echo "  Build specific commit:     $0 --build abc123def456"
   echo "  Force online installation: $0 --online"
+  echo "  Include .git directory:    $0 --movegit"
   echo ""
   echo "NOTE:"
   echo "  If you modify this script or add new parameters, please update this help section."
@@ -549,6 +553,15 @@ build_exclude_pattern() {
       fi
     fi
   done
+  
+  # Add .git to exclude pattern unless --movegit is specified
+  if [ "$MOVE_GIT" = false ]; then
+    if [ -z "$pattern" ]; then
+      pattern="-path ./.git"
+    else
+      pattern="$pattern -o -path ./.git"
+    fi
+  fi
   
   echo "$pattern"
 }
@@ -866,6 +879,10 @@ for arg in "$@"; do
       ONLINE_MODE=true
       log_message "Online installation mode enabled - will use apt/apk instead of local packages"
       ;;
+    --movegit)
+      MOVE_GIT=true
+      log_message "Git directory will be included in installation (--movegit enabled)"
+      ;;
   esac
 done
 
@@ -927,7 +944,7 @@ log_message "Creating installation directory..."
 mkdir -p "$INSTALL_DIR"
 
 log_message "Copying files..."
-# Build exclude pattern from EXCLUDE_DIRS
+# Build exclude pattern from EXCLUDE_DIRS, now including .git conditionally
 EXCLUDE_PATTERN=$(build_exclude_pattern)
 
 if [ "$LOG_MODE" = true ]; then
@@ -941,22 +958,40 @@ if [ "$LOG_MODE" = true ]; then
       fi
     done) &
   else
-    # No exclusions defined - use original pattern
-    (cd "$REPO_DIR" && find . \( -path ./core/upack -o -path ./core/upack-server -o -path ./core/apk \) -prune -o -type f -print | while read file; do
-      if [ -n "$file" ] && [ "$file" != "." ]; then
-        dest_file="$INSTALL_DIR/$file"
-        mkdir -p "$(dirname "$dest_file")"
-        cp -v "$file" "$dest_file"
-      fi
-    done) &
+    # No exclusions defined - use original pattern with .git exclusion unless --movegit is specified
+    if [ "$MOVE_GIT" = true ]; then
+      # Include .git in copy
+      (cd "$REPO_DIR" && find . \( -path ./core/upack -o -path ./core/upack-server -o -path ./core/apk \) -prune -o -type f -print | while read file; do
+        if [ -n "$file" ] && [ "$file" != "." ]; then
+          dest_file="$INSTALL_DIR/$file"
+          mkdir -p "$(dirname "$dest_file")"
+          cp -v "$file" "$dest_file"
+        fi
+      done) &
+    else
+      # Exclude .git (default)
+      (cd "$REPO_DIR" && find . \( -path ./.git -o -path ./core/upack -o -path ./core/upack-server -o -path ./core/apk \) -prune -o -type f -print | while read file; do
+        if [ -n "$file" ] && [ "$file" != "." ]; then
+          dest_file="$INSTALL_DIR/$file"
+          mkdir -p "$(dirname "$dest_file")"
+          cp -v "$file" "$dest_file"
+        fi
+      done) &
+    fi
   fi
 else
   # Silent copy
   if [ -n "$EXCLUDE_PATTERN" ]; then
     (cd "$REPO_DIR" && find . \( $EXCLUDE_PATTERN \) -prune -o -type f -exec cp --parents {} "$INSTALL_DIR" \; 2>/dev/null) &
   else
-    # No exclusions defined - use original pattern
-    (cd "$REPO_DIR" && find . \( -path ./core/upack -o -path ./core/upack-server -o -path ./core/apk \) -prune -o -type f -exec cp --parents {} "$INSTALL_DIR" \; 2>/dev/null) &
+    # No exclusions defined - use original pattern with .git exclusion unless --movegit is specified
+    if [ "$MOVE_GIT" = true ]; then
+      # Include .git in copy
+      (cd "$REPO_DIR" && find . \( -path ./core/upack -o -path ./core/upack-server -o -path ./core/apk \) -prune -o -type f -exec cp --parents {} "$INSTALL_DIR" \; 2>/dev/null) &
+    else
+      # Exclude .git (default)
+      (cd "$REPO_DIR" && find . \( -path ./.git -o -path ./core/upack -o -path ./core/upack-server -o -path ./core/apk \) -prune -o -type f -exec cp --parents {} "$INSTALL_DIR" \; 2>/dev/null) &
+    fi
   fi
 fi
 
@@ -966,7 +1001,11 @@ show_progress "Copying files" $!
 if [ -n "$EXCLUDE_PATTERN" ]; then
   src_count=$(cd "$REPO_DIR" && find . \( $EXCLUDE_PATTERN \) -prune -o -type f -print | wc -l)
 else
-  src_count=$(cd "$REPO_DIR" && find . \( -path ./core/upack -o -path ./core/upack-server -o -path ./core/apk \) -prune -o -type f -print | wc -l)
+  if [ "$MOVE_GIT" = true ]; then
+    src_count=$(cd "$REPO_DIR" && find . \( -path ./core/upack -o -path ./core/upack-server -o -path ./core/apk \) -prune -o -type f -print | wc -l)
+  else
+    src_count=$(cd "$REPO_DIR" && find . \( -path ./.git -o -path ./core/upack -o -path ./core/upack-server -o -path ./core/apk \) -prune -o -type f -print | wc -l)
+  fi
 fi
 dest_count=$(find "$INSTALL_DIR" -type f | wc -l)
 
@@ -1024,6 +1063,13 @@ elif [ "$OS_TYPE" = "ubuntu" ] && [ "$ON_WSL" = true ]; then
   log_message "Note: Ubuntu on WSL detected - packages were installed online using apt"
 else
   log_message "Note: Packages were installed from local .deb/.apk files"
+fi
+
+# Display git directory status
+if [ "$MOVE_GIT" = true ]; then
+  log_message "Note: Git directory was included in installation (--movegit enabled)"
+else
+  log_message "Note: Git directory was excluded from installation (default, use --movegit to include)"
 fi
 
 log_message "Installation completed successfully!"
