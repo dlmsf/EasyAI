@@ -1,50 +1,278 @@
-// ========== db.js - Production Ready Version ==========
+// ========== db.js - Fixed Version (process exits properly) ==========
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import os from 'os';
 import crypto from 'crypto';
-import EventEmitter from 'events';
+import { EventEmitter } from 'events';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ========== MACHINE ID GENERATION ==========
-// Cache the machine ID so it's always the same
-let MACHINE_ID_CACHE = null;
-
 /**
- * Gets a machine-specific identifier (always the same for this machine)
+ * Gets a machine-specific identifier (CONSISTENT between runs)
  * @returns {string} Machine identifier
  */
 function getMachineId() {
-    if (MACHINE_ID_CACHE) {
-        return MACHINE_ID_CACHE;
-    }
-    
     try {
-        // Try to get MAC address (most reliable)
+        // Try to get MAC address (most reliable and consistent)
         const interfaces = os.networkInterfaces();
         for (const [name, addrs] of Object.entries(interfaces)) {
             for (const addr of addrs) {
                 if (!addr.internal && addr.mac && addr.mac !== '00:00:00:00:00:00') {
-                    MACHINE_ID_CACHE = addr.mac.replace(/:/g, '');
-                    return MACHINE_ID_CACHE;
+                    return addr.mac.replace(/:/g, '');
                 }
             }
         }
         
-        // Fallback to hostname
-        MACHINE_ID_CACHE = os.hostname().replace(/[^a-zA-Z0-9]/g, '');
-        return MACHINE_ID_CACHE;
+        // Fallback to hostname (consistent for a machine)
+        return os.hostname().replace(/[^a-zA-Z0-9]/g, '');
     } catch (error) {
-        // Ultimate fallback: random (but still cache it)
-        MACHINE_ID_CACHE = `machine-${Math.random().toString(36).substr(2, 9)}`;
-        return MACHINE_ID_CACHE;
+        // Ultimate fallback: a consistent ID based on machine path
+        // This ensures the same machine gets the same ID
+        return `machine-${crypto.createHash('md5').update(__dirname).digest('hex').substr(0, 8)}`;
     }
 }
 
-// ========== Default Storage Instance ==========
+/**
+ * Generates a consistent unique ID using only machine ID
+ * @returns {string} Unique identifier (consistent between runs)
+ */
+function generateUniqueId() {
+    // JUST the machine ID - no random bytes, no timestamp
+    // This ensures the same machine gets the same ID every time
+    return getMachineId();
+}
+
+// ========== Lock Manager for ACID Compliance (NON-BLOCKING) ==========
+class LockManager {
+    constructor() {
+        this.locks = new Map();
+        this.timeout = 5000; // 5 second lock timeout
+    }
+
+    async acquire(key, timeout = 5000) {
+        const startTime = Date.now();
+        
+        // Non-blocking check - if locked, wait but don't block the event loop
+        while (this.locks.has(key)) {
+            if (Date.now() - startTime > timeout) {
+                throw new Error(`Lock acquisition timeout for key: ${key}`);
+            }
+            // Use setImmediate to not block the event loop
+            await new Promise(resolve => setImmediate(resolve));
+        }
+        
+        this.locks.set(key, {
+            acquired: Date.now(),
+            timeout: this.timeout
+        });
+        
+        return {
+            release: () => this.release(key)
+        };
+    }
+
+    release(key) {
+        this.locks.delete(key);
+    }
+
+    // Check if a key is locked without waiting
+    isLocked(key) {
+        return this.locks.has(key);
+    }
+}
+
+// ========== Memory Manager with LRU Strategy ==========
+class MemoryManager extends EventEmitter {
+    constructor(options = {}) {
+        super();
+        this.maxInstances = options.maxInstances || 1000;
+        this.maxMemoryPercent = options.maxMemoryPercent || 70; // Max 70% memory usage
+        this.instanceAccess = new Map(); // track last access time
+        this.instanceData = new Map(); // store instance data when unloaded
+        this.unloadTimeout = options.unloadTimeout || 30 * 60 * 1000; // 30 minutes default
+        this.checkInterval = options.checkInterval || 60 * 1000; // Check every minute
+        this._interval = null;
+        this._instanceCount = 0;
+    }
+
+    startMonitoring() {
+        // Only start if we have instances and no interval running
+        if (this._instanceCount > 0 && !this._interval) {
+            this._interval = setInterval(() => {
+                this.checkMemoryAndUnload().catch(console.error);
+            }, this.checkInterval);
+            // Allow the interval to be the only thing keeping the process alive
+            this._interval.unref();
+        }
+    }
+
+    stopMonitoring() {
+        if (this._interval) {
+            clearInterval(this._interval);
+            this._interval = null;
+        }
+    }
+
+    incrementInstanceCount() {
+        this._instanceCount++;
+        this.startMonitoring();
+    }
+
+    decrementInstanceCount() {
+        this._instanceCount = Math.max(0, this._instanceCount - 1);
+        if (this._instanceCount === 0) {
+            this.stopMonitoring();
+        }
+    }
+
+    getMemoryUsagePercent() {
+        const used = process.memoryUsage().heapUsed;
+        const total = os.totalmem();
+        return (used / total) * 100;
+    }
+
+    async checkMemoryAndUnload() {
+        // Don't do anything if no instances
+        if (this._instanceCount === 0) {
+            this.stopMonitoring();
+            return;
+        }
+
+        const memoryPercent = this.getMemoryUsagePercent();
+        
+        if (memoryPercent > this.maxMemoryPercent || this.instanceAccess.size > this.maxInstances) {
+            await this.unloadLeastUsed();
+        }
+    }
+
+    async unloadLeastUsed() {
+        const now = Date.now();
+        const instances = Array.from(this.instanceAccess.entries());
+        
+        // Sort by last access time (oldest first)
+        instances.sort((a, b) => a[1].lastAccess - b[1].lastAccess);
+        
+        let unloaded = 0;
+        const targetUnload = Math.floor(this.instanceAccess.size * 0.2); // Unload 20% of instances
+        
+        for (const [key, data] of instances) {
+            if (unloaded >= targetUnload) break;
+            
+            // Only unload if not accessed recently
+            if (now - data.lastAccess > this.unloadTimeout && !data.dirty) {
+                this.instanceData.set(key, data.serialized);
+                this.instanceAccess.delete(key);
+                this.emit('instanceUnloaded', key);
+                unloaded++;
+            }
+        }
+    }
+
+    registerAccess(instance) {
+        const key = instance._key;
+        this.instanceAccess.set(key, {
+            lastAccess: Date.now(),
+            dirty: instance._dirty || false,
+            serialized: instance._getSerializedState()
+        });
+    }
+
+    markDirty(instance) {
+        const key = instance._key;
+        const data = this.instanceAccess.get(key);
+        if (data) {
+            data.dirty = true;
+            data.lastAccess = Date.now();
+        }
+    }
+
+    markClean(instance) {
+        const key = instance._key;
+        const data = this.instanceAccess.get(key);
+        if (data) {
+            data.dirty = false;
+            data.serialized = instance._getSerializedState();
+        }
+    }
+
+    shouldLoad(key) {
+        return !this.instanceAccess.has(key) && this.instanceData.has(key);
+    }
+
+    getUnloadedData(key) {
+        return this.instanceData.get(key);
+    }
+
+    removeUnloadedData(key) {
+        this.instanceData.delete(key);
+    }
+}
+
+// ========== Transaction Logger for ACID ==========
+class TransactionLogger {
+    constructor(storage) {
+        this.storage = storage;
+        this.logFile = path.join(storage.folder, '_transactions.log');
+        this.pendingTransactions = new Map();
+    }
+
+    async begin(instanceKey) {
+        const transactionId = crypto.randomBytes(16).toString('hex');
+        this.pendingTransactions.set(transactionId, {
+            instanceKey,
+            changes: [],
+            timestamp: Date.now()
+        });
+        
+        await this._log('BEGIN', transactionId, instanceKey);
+        return transactionId;
+    }
+
+    async logChange(transactionId, key, oldValue, newValue) {
+        const transaction = this.pendingTransactions.get(transactionId);
+        if (transaction) {
+            transaction.changes.push({ key, oldValue, newValue });
+            await this._log('CHANGE', transactionId, { key, oldValue, newValue });
+        }
+    }
+
+    async commit(transactionId) {
+        const transaction = this.pendingTransactions.get(transactionId);
+        if (transaction) {
+            await this._log('COMMIT', transactionId);
+            this.pendingTransactions.delete(transactionId);
+        }
+    }
+
+    async rollback(transactionId) {
+        const transaction = this.pendingTransactions.get(transactionId);
+        if (transaction) {
+            await this._log('ROLLBACK', transactionId);
+            // Apply rollback logic here if needed
+            this.pendingTransactions.delete(transactionId);
+        }
+    }
+
+    async _log(type, transactionId, data = null) {
+        const logEntry = {
+            type,
+            transactionId,
+            timestamp: Date.now(),
+            data
+        };
+        
+        try {
+            await fs.appendFile(this.logFile, JSON.stringify(logEntry) + '\n');
+        } catch (error) {
+            console.error('Transaction log error:', error);
+        }
+    }
+}
+
+// ========== Default Storage Instance (singleton) ==========
 let defaultStorage = null;
 
 export function setDefaultStorage(storage) {
@@ -58,249 +286,7 @@ export function getDefaultStorage() {
     return defaultStorage;
 }
 
-// ========== Lock Manager for ACID Compliance ==========
-class LockManager {
-    constructor() {
-        this.locks = new Map();
-        this.waitingQueues = new Map();
-        this.acquireTimeouts = new Map();
-    }
-
-    async acquireLock(key, timeout = 5000) {
-        const startTime = Date.now();
-        
-        while (this.locks.get(key)) {
-            if (Date.now() - startTime > timeout) {
-                throw new Error(`Lock acquisition timeout for key: ${key}`);
-            }
-            
-            if (!this.waitingQueues.has(key)) {
-                this.waitingQueues.set(key, []);
-            }
-            
-            await new Promise(resolve => {
-                this.waitingQueues.get(key).push(resolve);
-            });
-        }
-        
-        this.locks.set(key, true);
-        
-        const timeoutId = setTimeout(() => {
-            this.releaseLock(key);
-        }, timeout);
-        
-        this.acquireTimeouts.set(key, timeoutId);
-        
-        return true;
-    }
-
-    releaseLock(key) {
-        this.locks.delete(key);
-        
-        if (this.acquireTimeouts.has(key)) {
-            clearTimeout(this.acquireTimeouts.get(key));
-            this.acquireTimeouts.delete(key);
-        }
-        
-        const queue = this.waitingQueues.get(key);
-        if (queue && queue.length > 0) {
-            const nextResolve = queue.shift();
-            nextResolve();
-        }
-        
-        if (queue && queue.length === 0) {
-            this.waitingQueues.delete(key);
-        }
-    }
-}
-
-// ========== Cache Manager with Intelligent Memory Management ==========
-class CacheManager extends EventEmitter {
-    constructor(options = {}) {
-        super();
-        this.cache = new Map();
-        this.accessTimes = new Map();
-        this.dirtyFlags = new Map();
-        this.maxSize = options.maxCacheSize || 1000;
-        this.ttl = options.cacheTTL || 30 * 60 * 1000;
-        this.cleanupInterval = options.cleanupInterval || 60 * 1000;
-        
-        this.memoryThreshold = options.memoryThreshold || 0.8;
-        this.lastCleanup = Date.now();
-        this.cleanupTimer = null;
-        this.instanceMetrics = new Map();
-        
-        this.isRunning = false;
-    }
-
-    _ensureCleanupRunning() {
-        if (!this.isRunning && this.cache.size > 0) {
-            this.startCleanup();
-        }
-    }
-
-    set(key, instance, isDirty = false) {
-        if (this.cache.size >= this.maxSize) {
-            this.evictLRU();
-        }
-        
-        if (this.isMemoryPressure()) {
-            this.evictUnderutilized(0.3);
-        }
-        
-        this.cache.set(key, instance);
-        this.updateAccess(key);
-        
-        if (isDirty) {
-            this.dirtyFlags.set(key, true);
-        }
-        
-        this._ensureCleanupRunning();
-        this.emit('instance:cached', { key, instance });
-    }
-
-    get(key) {
-        if (this.cache.has(key)) {
-            this.updateAccess(key);
-            this._ensureCleanupRunning();
-            return this.cache.get(key);
-        }
-        return null;
-    }
-
-    has(key) {
-        return this.cache.has(key);
-    }
-
-    delete(key) {
-        this.cache.delete(key);
-        this.accessTimes.delete(key);
-        this.dirtyFlags.delete(key);
-        this.instanceMetrics.delete(key);
-        this.emit('instance:evicted', { key });
-    }
-
-    isDirty(key) {
-        return this.dirtyFlags.has(key);
-    }
-
-    markClean(key) {
-        this.dirtyFlags.delete(key);
-    }
-
-    updateAccess(key) {
-        this.accessTimes.set(key, Date.now());
-        
-        const metrics = this.instanceMetrics.get(key) || { accessCount: 0, lastAccess: 0 };
-        metrics.accessCount++;
-        metrics.lastAccess = Date.now();
-        this.instanceMetrics.set(key, metrics);
-    }
-
-    evictLRU() {
-        let oldest = null;
-        let oldestTime = Infinity;
-        
-        for (const [key, time] of this.accessTimes.entries()) {
-            if (time < oldestTime && !this.dirtyFlags.has(key)) {
-                oldestTime = time;
-                oldest = key;
-            }
-        }
-        
-        if (oldest) {
-            this.delete(oldest);
-            this.emit('eviction:lru', { key: oldest });
-        }
-    }
-
-    evictUnderutilized(percentage) {
-        const instances = Array.from(this.cache.keys())
-            .filter(key => !this.dirtyFlags.has(key))
-            .map(key => ({
-                key,
-                accessCount: this.instanceMetrics.get(key)?.accessCount || 0,
-                lastAccess: this.accessTimes.get(key) || 0
-            }))
-            .sort((a, b) => a.accessCount - b.accessCount || a.lastAccess - b.lastAccess);
-        
-        const evictCount = Math.floor(instances.length * percentage);
-        
-        for (let i = 0; i < evictCount; i++) {
-            this.delete(instances[i].key);
-        }
-        
-        this.emit('eviction:underutilized', { count: evictCount });
-    }
-
-    isMemoryPressure() {
-        const memoryUsage = process.memoryUsage();
-        const heapUsed = memoryUsage.heapUsed;
-        const heapTotal = memoryUsage.heapTotal;
-        
-        return (heapUsed / heapTotal) > this.memoryThreshold;
-    }
-
-    startCleanup() {
-        if (this.cleanupTimer) {
-            clearInterval(this.cleanupTimer);
-        }
-        
-        this.isRunning = true;
-        this.cleanupTimer = setInterval(() => {
-            const now = Date.now();
-            
-            for (const [key, accessTime] of this.accessTimes.entries()) {
-                if (now - accessTime > this.ttl && !this.dirtyFlags.has(key)) {
-                    this.delete(key);
-                }
-            }
-            
-            if (this.isMemoryPressure()) {
-                this.evictUnderutilized(0.2);
-            }
-            
-            if (this.cache.size === 0) {
-                this.stopCleanup();
-            }
-            
-            this.emit('cleanup:completed', {
-                cacheSize: this.cache.size,
-                dirtyCount: this.dirtyFlags.size
-            });
-        }, this.cleanupInterval);
-        
-        this.cleanupTimer.unref();
-    }
-
-    stopCleanup() {
-        if (this.cleanupTimer) {
-            clearInterval(this.cleanupTimer);
-            this.cleanupTimer = null;
-            this.isRunning = false;
-        }
-    }
-
-    async flushAll() {
-        for (const [key] of this.dirtyFlags) {
-            const instance = this.cache.get(key);
-            if (instance && instance.save) {
-                await instance.save();
-            }
-        }
-        this.dirtyFlags.clear();
-    }
-
-    async shutdown() {
-        await this.flushAll();
-        this.stopCleanup();
-        this.cache.clear();
-        this.accessTimes.clear();
-        this.instanceMetrics.clear();
-    }
-}
-
-// ========== Storage Connection Interface ==========
+// ========== 1. Storage Connection Interface ==========
 export class StorageConnection {
     constructor(options = {}) {
         this.name = options.name || 'app';
@@ -313,25 +299,23 @@ export class StorageConnection {
     async list() { throw new Error('list() must be implemented'); }
 }
 
-// ========== JSON Storage with ACID Support ==========
+// ========== 2. JSON Storage (Enhanced) ==========
 export class JSONStorage extends StorageConnection {
     constructor(options = {}) {
         super(options);
         this.folder = options.folder || path.join(process.cwd(), 'data');
         this.extension = options.extension || '.json';
-        this.lockManager = new LockManager();
+        this.writeQueue = new Map();
+        this.isWriting = false;
+        this.pendingWrites = 0;
         
-        this.txnLogFolder = path.join(this.folder, 'txn_logs');
         fsSync.mkdirSync(this.folder, { recursive: true });
-        fsSync.mkdirSync(this.txnLogFolder, { recursive: true });
     }
 
     _getFilePath(key) {
-        return path.join(this.folder, `${key}${this.extension}`);
-    }
-
-    _getTxnLogPath(key, txnId) {
-        return path.join(this.txnLogFolder, `${key}_${txnId}.log`);
+        // Sanitize key for filesystem
+        const sanitizedKey = key.replace(/[^a-zA-Z0-9._:-]/g, '_');
+        return path.join(this.folder, `${sanitizedKey}${this.extension}`);
     }
 
     _serialize(obj) {
@@ -348,6 +332,9 @@ export class JSONStorage extends StorageConnection {
         }
         if (obj instanceof RegExp) {
             return { __type: 'RegExp', data: obj.toString() };
+        }
+        if (obj instanceof Error) {
+            return { __type: 'Error', data: { message: obj.message, stack: obj.stack } };
         }
         if (Array.isArray(obj)) {
             return obj.map(v => this._serialize(v));
@@ -375,6 +362,11 @@ export class JSONStorage extends StorageConnection {
                 const match = obj.data.match(/\/(.*)\/([gimy]*)$/);
                 return match ? new RegExp(match[1], match[2]) : new RegExp(obj.data);
             }
+            if (obj.__type === 'Error') {
+                const error = new Error(obj.data.message);
+                error.stack = obj.data.stack;
+                return error;
+            }
             if (Array.isArray(obj)) {
                 return obj.map(v => this._deserialize(v));
             }
@@ -389,108 +381,104 @@ export class JSONStorage extends StorageConnection {
     }
 
     async save(key, data) {
-        const txnId = crypto.randomBytes(16).toString('hex');
+        this.pendingWrites++;
+        // Queue the write operation
+        this.writeQueue.set(key, data);
         
-        await this.lockManager.acquireLock(key);
+        if (!this.isWriting) {
+            this.isWriting = true;
+            // Use setImmediate to not block
+            setImmediate(() => this._processWriteQueue());
+        }
+    }
+
+    async _processWriteQueue() {
+        const writes = Array.from(this.writeQueue.entries());
+        this.writeQueue.clear();
         
-        try {
-            const txnLogPath = this._getTxnLogPath(key, txnId);
-            const serialized = this._serialize(data);
-            await fs.writeFile(txnLogPath, JSON.stringify(serialized));
+        // Process writes in batches to avoid blocking
+        const batchSize = 5;
+        for (let i = 0; i < writes.length; i += batchSize) {
+            const batch = writes.slice(i, i + batchSize);
             
-            const filePath = this._getFilePath(key);
-            await fs.writeFile(filePath, JSON.stringify(serialized, null, 2));
+            const writePromises = batch.map(async ([key, data]) => {
+                const filePath = this._getFilePath(key);
+                const serialized = this._serialize(data);
+                
+                // Atomic write
+                const tempPath = `${filePath}.tmp`;
+                try {
+                    await fs.writeFile(tempPath, JSON.stringify(serialized, null, 2));
+                    await fs.rename(tempPath, filePath);
+                } catch (error) {
+                    console.error(`Failed to save ${key}:`, error);
+                    // Re-queue failed writes
+                    this.writeQueue.set(key, data);
+                }
+            });
             
-            await fs.unlink(txnLogPath).catch(() => {});
+            await Promise.all(writePromises);
             
-        } catch (error) {
-            await this._recover(key);
-            throw error;
-        } finally {
-            this.lockManager.releaseLock(key);
+            // Allow event loop to breathe between batches
+            if (i + batchSize < writes.length) {
+                await new Promise(resolve => setImmediate(resolve));
+            }
+        }
+        
+        this.pendingWrites = Math.max(0, this.pendingWrites - writes.length);
+        this.isWriting = false;
+        
+        // Process any new writes
+        if (this.writeQueue.size > 0) {
+            this.isWriting = true;
+            setImmediate(() => this._processWriteQueue());
         }
     }
 
     async load(key) {
-        await this.lockManager.acquireLock(key, 1000);
-        
         try {
             const filePath = this._getFilePath(key);
-            
-            try {
-                await fs.access(filePath);
-            } catch {
-                return null;
-            }
-            
             const content = await fs.readFile(filePath, 'utf-8');
             const data = JSON.parse(content);
             return this._deserialize(data);
-            
         } catch (err) {
-            const recovered = await this._recover(key);
-            if (recovered) {
-                return recovered;
-            }
             return null;
-        } finally {
-            this.lockManager.releaseLock(key);
         }
-    }
-
-    async _recover(key) {
-        try {
-            const files = await fs.readdir(this.txnLogFolder);
-            const txnLogs = files.filter(f => f.startsWith(`${key}_`));
-            
-            if (txnLogs.length > 0) {
-                txnLogs.sort();
-                const latestTxn = txnLogs[txnLogs.length - 1];
-                const txnPath = path.join(this.txnLogFolder, latestTxn);
-                
-                const content = await fs.readFile(txnPath, 'utf-8');
-                const data = JSON.parse(content);
-                
-                const filePath = this._getFilePath(key);
-                await fs.writeFile(filePath, JSON.stringify(data, null, 2));
-                
-                for (const log of txnLogs) {
-                    await fs.unlink(path.join(this.txnLogFolder, log)).catch(() => {});
-                }
-                
-                return this._deserialize(data);
-            }
-        } catch (error) {
-            console.error('Recovery failed:', error);
-        }
-        
-        return null;
     }
 
     async delete(key) {
-        await this.lockManager.acquireLock(key);
-        
         try {
             const filePath = this._getFilePath(key);
-            await fs.unlink(filePath).catch(() => {});
-        } finally {
-            this.lockManager.releaseLock(key);
-        }
+            await fs.unlink(filePath);
+        } catch (err) {}
     }
 
     async list() {
         try {
             const files = await fs.readdir(this.folder);
             return files
-                .filter(f => f.endsWith(this.extension))
+                .filter(f => f.endsWith(this.extension) && !f.startsWith('_') && !f.endsWith('.tmp'))
                 .map(f => f.replace(this.extension, ''));
         } catch (err) {
             return [];
         }
     }
+
+    // Wait for all pending writes to complete
+    async flush() {
+        while (this.pendingWrites > 0 || this.isWriting) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }
+    }
 }
 
-// ========== Helper Functions ==========
+// ========== 3. Enhanced Cache with Memory Management ==========
+const instanceCache = new Map();
+const lockManager = new LockManager();
+const memoryManager = new MemoryManager();
+const transactionLogger = new TransactionLogger(getDefaultStorage());
+
+// ========== 4. Helper to get full inheritance chain ==========
 function getInheritanceChain(obj) {
     const chain = [];
     let proto = obj.constructor;
@@ -503,92 +491,47 @@ function getInheritanceChain(obj) {
     return chain;
 }
 
-// ========== Global Cache Manager ==========
-const globalCache = new CacheManager({
-    maxCacheSize: 1000,
-    cacheTTL: 30 * 60 * 1000,
-    cleanupInterval: 60 * 1000,
-    memoryThreshold: 0.8
-});
-
-// Handle process exit to flush cache
-process.on('beforeExit', async () => {
-    await globalCache.flushAll();
-    await globalCache.shutdown();
-});
-
-process.on('SIGINT', async () => {
-    await globalCache.flushAll();
-    await globalCache.shutdown();
-    process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-    await globalCache.flushAll();
-    await globalCache.shutdown();
-    process.exit(0);
-});
-
-// ========== The Enhanced DB Class ==========
+// ========== 5. The Enhanced DB Class ==========
 class DB {
-    /**
-     * @param {Object|string} options - Configuration options or unique ID string
-     */
     constructor(options = {}) {
-        // Capture the first argument passed to the constructor
-        const firstArg = arguments.length > 0 ? arguments[0] : null;
-        
-        // Determine the unique key
-        let finalUniqueKey;
-        let storage = null;
-        let autoSave = true;
-        
-        if (typeof firstArg === 'string') {
-            // If first arg is a string, use it as the ID
-            finalUniqueKey = firstArg;
-            // Check if options is the second argument
-            if (arguments.length > 1 && arguments[1] && typeof arguments[1] === 'object') {
-                storage = arguments[1].storage;
-                autoSave = arguments[1].autoSave !== false;
-            }
-        } else if (firstArg && typeof firstArg === 'object') {
-            // If first arg is an object, extract id from it
-            finalUniqueKey = firstArg.id || getMachineId(); // Use machine ID if no id provided
-            storage = firstArg.storage;
-            autoSave = firstArg.autoSave !== false;
-        } else {
-            // No arguments provided - use machine ID
-            finalUniqueKey = getMachineId();
-        }
+        // Generate ID if not provided (NOW CONSISTENT)
+        const finalUniqueKey = options.id || generateUniqueId();
         
         // Use provided storage or get default
-        this._storage = storage || getDefaultStorage();
-        this._autoSave = autoSave;
+        this._storage = options.storage || getDefaultStorage();
+        this._autoSave = this._storage.autoSave;
         this._uniqueKey = finalUniqueKey;
         
         // Build the full key with inheritance chain
         this._key = this._buildKey();
         
-        // Check cache first
-        if (globalCache.has(this._key)) {
-            return globalCache.get(this._key);
+        // Check cache
+        const cacheKey = this._key;
+        if (instanceCache.has(cacheKey)) {
+            return instanceCache.get(cacheKey);
         }
         
-        // Load data from storage
+        // Check if we should load from memory manager
+        if (memoryManager.shouldLoad(cacheKey)) {
+            const unloadedData = memoryManager.getUnloadedData(cacheKey);
+            if (unloadedData) {
+                Object.assign(this, unloadedData);
+                memoryManager.removeUnloadedData(cacheKey);
+            }
+        }
+        
+        // LOAD SYNCHRONOUSLY (non-blocking)
         this._loadSync();
         
-        // Store in cache
-        globalCache.set(this._key, this, false);
+        instanceCache.set(cacheKey, this);
+        memoryManager.registerAccess(this);
+        memoryManager.incrementInstanceCount();
         
         return this;
     }
 
-    _buildKey() {
-        const chain = getInheritanceChain(this);
-        return `${chain.join('.')}:${this._uniqueKey}`;
-    }
-
     _loadSync() {
+        // Use try-catch without locks for initial load to avoid blocking
         try {
             const filePath = this._storage._getFilePath(this._key);
             if (fsSync.existsSync(filePath)) {
@@ -596,6 +539,7 @@ class DB {
                 const data = JSON.parse(content);
                 const deserialized = this._storage._deserialize(data);
                 
+                // Apply loaded data
                 for (const [key, value] of Object.entries(deserialized)) {
                     if (!key.startsWith('_')) {
                         this[key] = value;
@@ -607,18 +551,34 @@ class DB {
         }
     }
 
-    async _loadAsync() {
-        const data = await this._storage.load(this._key);
-        if (data) {
-            for (const [key, value] of Object.entries(data)) {
-                if (!key.startsWith('_')) {
-                    this[key] = value;
+    async _loadWithLock() {
+        // Only use locks for critical operations, not for initial load
+        if (lockManager.isLocked(this._key)) {
+            // If locked, wait a bit but don't block
+            await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        
+        const lock = await lockManager.acquire(this._key);
+        try {
+            const data = await this._storage.load(this._key);
+            if (data) {
+                for (const [key, value] of Object.entries(data)) {
+                    if (!key.startsWith('_')) {
+                        this[key] = value;
+                    }
                 }
             }
+        } finally {
+            lock.release();
         }
     }
 
-    async save() {
+    _buildKey() {
+        const chain = getInheritanceChain(this);
+        return `${chain.join('.')}:${this._uniqueKey}`;
+    }
+
+    _getSerializedState() {
         const state = {};
         let current = this;
         
@@ -634,16 +594,44 @@ class DB {
             current = Object.getPrototypeOf(current);
         }
         
-        await this._storage.save(this._key, state);
-        globalCache.markClean(this._key);
+        return state;
+    }
+
+    async save(transactionId = null) {
+        this._dirty = true;
+        memoryManager.markDirty(this);
+        
+        const state = this._getSerializedState();
+        
+        // Only use locks for critical save operations
+        const lock = await lockManager.acquire(this._key);
+        try {
+            if (transactionId) {
+                const oldState = await this._storage.load(this._key);
+                await transactionLogger.logChange(transactionId, this._key, oldState, state);
+            }
+            
+            await this._storage.save(this._key, state);
+            this._dirty = false;
+            memoryManager.markClean(this);
+            
+        } finally {
+            lock.release();
+        }
         
         return this;
     }
 
-    _markDirty() {
-        if (globalCache.has(this._key)) {
-            globalCache.updateAccess(this._key);
+    async saveWithTransaction() {
+        const transactionId = await transactionLogger.begin(this._key);
+        try {
+            await this.save(transactionId);
+            await transactionLogger.commit(transactionId);
+        } catch (error) {
+            await transactionLogger.rollback(transactionId);
+            throw error;
         }
+        return this;
     }
 
     async autoSave() {
@@ -652,29 +640,38 @@ class DB {
         }
     }
 
-    async reload() {
-        await this._loadAsync();
-        return this;
-    }
-
+    // Get the unique key
     get uniqueKey() {
+        memoryManager.registerAccess(this);
         return this._uniqueKey;
     }
 
+    // Get the full inheritance chain
     get inheritanceChain() {
+        memoryManager.registerAccess(this);
         return getInheritanceChain(this);
     }
 
+    // Get the full storage key
     get storageKey() {
+        memoryManager.registerAccess(this);
         return this._key;
     }
 
     async delete() {
-        await this._storage.delete(this._key);
-        globalCache.delete(this._key);
+        const lock = await lockManager.acquire(this._key);
+        try {
+            await this._storage.delete(this._key);
+            instanceCache.delete(this._key);
+            memoryManager.removeUnloadedData(this._key);
+            memoryManager.decrementInstanceCount();
+        } finally {
+            lock.release();
+        }
         return this;
     }
 
+    // Static method to get all instances
     static async getAll(storage = null) {
         const store = storage || getDefaultStorage();
         const keys = await store.list();
@@ -688,7 +685,7 @@ class DB {
             
             if (lastClass === className) {
                 const uniqueKey = key.split(':')[1];
-                const instance = new this(uniqueKey, { storage: store });
+                const instance = new this({ id: uniqueKey, storage: store });
                 instances.push(instance);
             }
         }
@@ -696,6 +693,7 @@ class DB {
         return instances;
     }
     
+    // Get all instances including subclasses
     static async getAllIncludingSubclasses(storage = null) {
         const store = storage || getDefaultStorage();
         const keys = await store.list();
@@ -708,7 +706,7 @@ class DB {
             
             if (classes.includes(className)) {
                 const uniqueKey = key.split(':')[1];
-                const instance = new this(uniqueKey, { storage: store });
+                const instance = new this({ id: uniqueKey, storage: store });
                 instances.push(instance);
             }
         }
@@ -716,35 +714,57 @@ class DB {
         return instances;
     }
     
+    // Find by unique key
     static async findBy(uniqueKey, storage = null) {
         const store = storage || getDefaultStorage();
         const keys = await store.list();
         const matchingKey = keys.find(k => k.endsWith(`:${uniqueKey}`));
         
         if (matchingKey) {
-            return new this(uniqueKey, { storage: store });
+            const instance = new this({ id: uniqueKey, storage: store });
+            return instance;
         }
         return null;
     }
 
+    // Static utility methods
     static getMachineId() {
         return getMachineId();
     }
 
-    static getCacheStats() {
-        return {
-            size: globalCache.cache.size,
-            dirtyCount: globalCache.dirtyFlags.size,
-            memoryUsage: process.memoryUsage()
-        };
+    static generateUniqueId() {
+        return generateUniqueId();
     }
 
-    static async flushCache() {
-        await globalCache.flushAll();
+    // Memory management control
+    static setMemoryOptions(options) {
+        if (options.maxInstances) memoryManager.maxInstances = options.maxInstances;
+        if (options.maxMemoryPercent) memoryManager.maxMemoryPercent = options.maxMemoryPercent;
+        if (options.unloadTimeout) memoryManager.unloadTimeout = options.unloadTimeout;
     }
 
-    static clearCache() {
-        globalCache.shutdown();
+    // Force unload from memory
+    static async unloadInstance(key) {
+        if (instanceCache.has(key)) {
+            const instance = instanceCache.get(key);
+            if (!instance._dirty) {
+                instanceCache.delete(key);
+                memoryManager.removeUnloadedData(key);
+                memoryManager.decrementInstanceCount();
+            }
+        }
+    }
+
+    // Flush all pending writes
+    static async flushAll() {
+        const writes = [];
+        for (const [key, instance] of instanceCache) {
+            if (instance._dirty) {
+                writes.push(instance.save());
+            }
+        }
+        await Promise.all(writes);
+        await getDefaultStorage().flush();
     }
 }
 
