@@ -120,7 +120,7 @@ const StartChat = (ai, process_name) => {
             console.clear()
             process.exit(0)
         },
-        title: 'EasyAI Flash'
+        title: 'EasyAI'
     })
     
     // Add a one-time handler for this specific chat instance

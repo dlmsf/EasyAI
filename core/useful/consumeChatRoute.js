@@ -10,8 +10,12 @@ import https from 'https';
  * @param {string} params.token - Authentication token (optional)
  * @param {Object} params.config - Configuration object (optional)
  * @param {Function} params.onData - Callback for streaming data (optional)
- * @returns {Promise<Object>} - Promise resolving to the response data
+ * @returns {Promise<Object>} - Promise resolving to the response data with stream log
  */
+
+// Default error message tokens for streaming
+const DEFAULT_ERROR_TOKENS = ["Sorry", ", ", "I'm ", "unable ", "to ", "respond ", "at ", "the ", "moment."];
+const DEFAULT_ERROR_TEXT = "Sorry, I'm unable to respond at the moment.";
 
 // verificação se é um IP
 function isIpAddress(serverUrl) {
@@ -26,54 +30,127 @@ function consumeChatRoute({
   config = {},
   onData = () => {}
 }) {
-  return new Promise(async (resolve, reject) => {
-    const maxRetryTime = 15000; // 15 seconds total retry time
-    const retryDelay = 2000; // 2 seconds between retries
+  return new Promise(async (resolve) => {
+    const maxRetryTime = 30000;
+    const retryDelay = 500;
     const startTime = Date.now();
     
     let lastError = null;
-    let activeRequest = null; // Track the active request to ensure only one at a time
+    let activeRequest = null;
+    let consecutiveTimeouts = 0;
+    
+    // Array to store all streamed tokens
+    const streamLog = [];
+    
+    // Wrapper for onData to also capture in streamLog
+    const wrappedOnData = (data) => {
+      // Call the original onData
+      onData(data);
+      // Capture in streamLog
+      streamLog.push(data);
+    };
     
     const cleanup = () => {
       activeRequest = null;
     };
     
+    // Check if streaming is enabled
+    const isStreaming = config.stream === true && typeof onData === 'function';
+    
     while (Date.now() - startTime < maxRetryTime) {
       try {
-        // Ensure only one request is active at a time per function call
         activeRequest = attemptRequest({
           serverUrl,
           port,
           messages,
           token,
           config,
-          onData
+          onData: wrappedOnData
         });
         
         const result = await activeRequest;
         cleanup();
-        resolve(result);
+        
+        // Handle both object and string results
+        let finalResult = result;
+        
+        // If result is a string, convert it to an object with full_text property
+        if (typeof result === 'string') {
+          finalResult = { full_text: result };
+        }
+        
+        // Add streamLog to the result (only if it's an object)
+        if (isStreaming && typeof finalResult === 'object' && finalResult !== null) {
+          finalResult.streamLog = streamLog;
+        }
+        
+        resolve(finalResult);
         return;
         
       } catch (error) {
         cleanup();
         lastError = error;
         
-        // If it's not a connection error, don't retry
-        if (!isConnectionError(error)) {
-          resolve({ error: error.message });
+        // Check if this is an error response from the server (like 403 token error)
+        // If it has a specific error message, pass it through directly
+        if (error.responseBody) {
+          resolve(error.responseBody);
           return;
         }
         
-        // Wait before retrying (only if we haven't exceeded max time)
+        if (error.message?.includes('timeout') || error.code === 'ETIMEDOUT') {
+          consecutiveTimeouts++;
+        } else {
+          consecutiveTimeouts = 0;
+        }
+        
+        if (!isConnectionError(error)) {
+          break;
+        }
+        
         if (Date.now() - startTime < maxRetryTime - retryDelay) {
           await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
       }
     }
     
-    // If we exhausted all retries, return server offline error
-    resolve({ error: "server offline" });
+    // Handle error case
+    if (isStreaming) {
+      await streamDefaultErrorMessage(wrappedOnData, config);
+      
+      resolve({ 
+        error: lastError?.message || "server offline",
+        full_text: DEFAULT_ERROR_TEXT,
+        streamLog: streamLog
+      });
+    } else {
+      resolve({ 
+        error: lastError?.message || "server offline" 
+      });
+    }
+  });
+}
+
+// Helper function to stream default error message
+async function streamDefaultErrorMessage(onData, config) {
+  return new Promise((resolve) => {
+    let i = 0;
+    
+    function streamNext() {
+      if (i < DEFAULT_ERROR_TOKENS.length) {
+        onData({
+          stream: {
+            content: DEFAULT_ERROR_TOKENS[i]
+          }
+        });
+        i++;
+        setTimeout(streamNext, 45);
+      } else {
+        resolve();
+      }
+    }
+    
+    streamNext();
   });
 }
 
@@ -81,8 +158,16 @@ function isConnectionError(error) {
   return error.code === 'ECONNREFUSED' || 
          error.code === 'ETIMEDOUT' || 
          error.code === 'ENOTFOUND' ||
-         error.message.includes('connect') ||
-         error.message.includes('connection');
+         error.code === 'ECONNRESET' ||
+         error.code === 'EAI_AGAIN' ||
+         error.code === 'EHOSTUNREACH' ||
+         error.code === 'ENETUNREACH' ||
+         error.message?.includes('connect') ||
+         error.message?.includes('connection') ||
+         error.message?.includes('timeout') ||
+         error.message?.includes('network') ||
+         error.message?.includes('ECONNREFUSED') ||
+         error.message?.includes('ETIMEDOUT');
 }
 
 function attemptRequest({
@@ -96,7 +181,7 @@ function attemptRequest({
   return new Promise((resolve, reject) => {
     let isIp = undefined;
 
-    if (serverUrl != 'localhost') {
+    if(serverUrl != 'localhost'){
       isIp = isIpAddress(serverUrl);
     } else {
       isIp = true;
@@ -116,9 +201,14 @@ function attemptRequest({
 
     const requestData = {
       messages,
-      ...(token && { token }),
       config: finalConfig
     };
+    
+    // Only include token in body for backward compatibility
+    // The token will also be sent in Authorization header
+    if (token) {
+      requestData.token = token;
+    }
 
     const postData = JSON.stringify(requestData);
 
@@ -131,8 +221,13 @@ function attemptRequest({
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(postData)
       },
-      timeout: 30000 // 30 second timeout for individual request
+      timeout: 10000
     };
+    
+    // Add Bearer token to Authorization header if token is provided
+    if (token) {
+      options.headers['Authorization'] = `Bearer ${token}`;
+    }
 
     const req = protocol.request(options, (res) => {
       let finalData = '';
@@ -140,26 +235,44 @@ function attemptRequest({
 
       res.on('data', (chunk) => {
         const chunkData = chunk.toString();
+        finalData += chunkData;
+        
         try {
           const parsedChunk = JSON.parse(chunkData);
-          if (!config.stream || parsedChunk.generation_settings) {
+          
+          if (parsedChunk.stream && config.stream) {
+            // This is a streaming token - pass it to onData
+            onData(parsedChunk);
+          } else if (!config.stream || parsedChunk.generation_settings) {
+            // This is the final result (non-streaming or metadata)
             if (!hasResolved) {
               hasResolved = true;
               resolve(parsedChunk);
             }
-          } else {
-            onData(parsedChunk);
           }
         } catch (error) {
-          finalData += chunkData;
+          // If it's not JSON and streaming is enabled, might be raw content
+          // Continue collecting data
         }
       });
 
       res.on('end', () => {
         if (!hasResolved) {
           try {
-            resolve(JSON.parse(finalData));
+            const parsedData = JSON.parse(finalData);
+            
+            // Check if this is an error response (like 403 with error field)
+            // Pass it through exactly as received from the server
+            if (res.statusCode >= 400 && parsedData.error) {
+              const error = new Error(parsedData.error);
+              error.responseBody = parsedData;
+              error.statusCode = res.statusCode;
+              reject(error);
+            } else {
+              resolve(parsedData);
+            }
           } catch (error) {
+            // If it's not JSON, return as string
             resolve(finalData);
           }
         }

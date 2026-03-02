@@ -14,6 +14,7 @@ import ConfigManager from "./core/ConfigManager.js";
 import {exec} from 'child_process'
 import DeepInfra from './core/DeepInfra.js'
 import NewChatPrompt from "./core/util/NewChatPrompt.js";
+import consumeChatRoute from "./core/useful/consumeChatRoute.js";
 
 
 
@@ -541,10 +542,40 @@ async Chat(messages = [], config = {}) {
     // Limit to last 20 messages to prevent explosion
     const limitedMessages = cleanMessages.slice(-20)
     
+    if(this.ServerURL){
+    let consume_result = await consumeChatRoute({serverUrl : this.ServerURL,port : this.ServerPORT,messages : limitedMessages,token : this.ServerTOKEN,config : config,onData : config.tokenCallback})
+                    if(consume_result.error && (consume_result.error == 'server offline' || consume_result.error == 'Invalid token.')){
+                        const tokens = ["Sorry", ", ", "I'm ", "unable ", "to ", "respond ", "at ", "the ", "moment."];
+                        consume_result.full_text = "Sorry, I'm unable to respond at the moment.";
+                    
+                        if(config.stream == true){ 
+                            return new Promise((resolve) => {
+                                let i = 0;
+                                (function next() {
+                                    if (i < tokens.length) {
+                                        config.tokenCallback({stream: {content: tokens[i]}});
+                                        i++;
+                                        setTimeout(next, 45);
+                                    } else {
+                                        resolve(consume_result); // testar trocando por '' dps
+                                    }
+                                })();
+                            });
+                        }
+                    }
+
+                    return consume_result
+                }
+
     // Handle OpenAI
     if ((config.openai || this.OpenAI) && !config.openai_avoidchat) {
         delete config.openai;
         return await this.OpenAI.Chat(limitedMessages, config);
+    }
+
+    if ((config.deepinfra || this.DeepInfra) && !config.deepinfra_avoidchat) {
+        delete config.deepinfra;
+        return await this.DeepInfra.Chat(limitedMessages, config);
     }
     
     // Handle DeepInfra
