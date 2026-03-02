@@ -1,8 +1,8 @@
 // ========== db.js - The Only File You Need ==========
 import fs from 'fs/promises';
+import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import crypto from 'crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -40,7 +40,7 @@ export class JSONStorage extends StorageConnection {
     this.folder = options.folder || path.join(process.cwd(), 'data');
     this.extension = options.extension || '.json';
     
-    fs.mkdir(this.folder, { recursive: true }).catch(() => {});
+    fsSync.mkdirSync(this.folder, { recursive: true });
   }
 
   _getFilePath(key) {
@@ -145,7 +145,6 @@ function getInheritanceChain(obj) {
   const chain = [];
   let proto = obj.constructor;
   
-  // Traverse up the prototype chain until we hit DB or Object
   while (proto && proto.name && proto !== DB && proto !== Object) {
     chain.unshift(proto.name);
     proto = Object.getPrototypeOf(proto);
@@ -154,9 +153,8 @@ function getInheritanceChain(obj) {
   return chain;
 }
 
-// ========== 5. The DB Class - Unique Key Required, Storage Optional ==========
+// ========== 5. The DB Class - 100% Synchronous Loading ==========
 export class DB {
-  // Unique key is REQUIRED as first parameter
   constructor(uniqueKey, storage = null) {
     if (!uniqueKey) {
       throw new Error('Unique key is required for DB instances');
@@ -176,85 +174,46 @@ export class DB {
       return instanceCache.get(cacheKey);
     }
     
-    // Auto-load existing data
-    this._loadPromise = this._storage.load(this._key).then(data => {
-      if (data) {
-        // Manually assign each property instead of Object.assign
-        for (const [key, value] of Object.entries(data)) {
-          // Skip internal properties and getters
-          if (key === '_storage' || key === '_key' || key === '_autoSave' || 
-              key === '_loadPromise' || key === '_uniqueKey' || key === 'inheritanceChain' ||
-              key === 'uniqueKey' || key === 'storageKey' || key.startsWith('_')) {
-            continue;
-          }
-          this[key] = value;
-        }
-      }
-      instanceCache.set(cacheKey, this);
-      return this;
-    });
-    
-    // Return proxy for auto-save
-    return new Proxy(this, {
-      get: (target, prop) => {
-        // If accessing, ensure load is complete
-        if (prop === 'then' || prop === 'catch' || prop === 'finally') {
-          return undefined; // Not a thenable
-        }
+    // SYNC LOAD - Load existing data synchronously
+    try {
+      const filePath = this._storage._getFilePath(this._key);
+      if (fsSync.existsSync(filePath)) {
+        const content = fsSync.readFileSync(filePath, 'utf-8');
+        const data = JSON.parse(content);
+        const deserialized = this._storage._deserialize(data);
         
-        const value = target[prop];
-        if (typeof value === 'function' && 
-            prop !== 'constructor' && 
-            !prop.startsWith('_')) {
-          return async (...args) => {
-            // Wait for load to complete before method execution
-            await target._loadPromise;
-            const result = await value.apply(target, args);
-            if (target._autoSave) {
-              await target._saveNow();
-            }
-            return result;
-          };
+        // Apply loaded data to this instance
+        for (const [key, value] of Object.entries(deserialized)) {
+          if (!key.startsWith('_')) {
+            this[key] = value;
+          }
         }
-        return value;
-      },
-      
-      set: (target, prop, value) => {
-        target[prop] = value;
-        if (target._autoSave && !prop.startsWith('_')) {
-          clearTimeout(target._saveTimeout);
-          target._saveTimeout = setTimeout(() => {
-            target._saveNow();
-          }, 100);
-        }
-        return true;
       }
-    });
+    } catch (err) {
+      // File doesn't exist or error loading - start fresh
+    }
+    
+    instanceCache.set(cacheKey, this);
+    
+    // No Proxy needed - just return this
+    return this;
   }
 
   // Build key that includes the entire inheritance chain
   _buildKey() {
     const chain = getInheritanceChain(this);
-    // Format: Animal.Mammal.Dog:uniqueKey
     return `${chain.join('.')}:${this._uniqueKey}`;
   }
 
-  async _saveNow() {
+  // Save method (async but can be called manually)
+  async save() {
     const state = {};
     let current = this;
     
-    // Collect all properties from the entire prototype chain
     while (current && current !== Object.prototype) {
       Object.getOwnPropertyNames(current).forEach(prop => {
-        // Skip internal properties and getters
-        if (prop === '_storage' || prop === '_key' || prop === '_autoSave' || 
-            prop === '_saveTimeout' || prop === '_loadPromise' || prop === '_uniqueKey' || 
-            prop === 'constructor' || prop.startsWith('_') ||
-            prop === 'inheritanceChain' || prop === 'uniqueKey' || prop === 'storageKey') {
-          return;
-        }
+        if (prop.startsWith('_') || prop === 'constructor') return;
         
-        // Only save if it's a data property, not a getter
         const descriptor = Object.getOwnPropertyDescriptor(current, prop);
         if (descriptor && !descriptor.get) {
           state[prop] = current[prop];
@@ -264,6 +223,14 @@ export class DB {
     }
     
     await this._storage.save(this._key, state);
+    return this;
+  }
+
+  // Auto-save method (call this when you want to save)
+  async autoSave() {
+    if (this._autoSave) {
+      await this.save();
+    }
   }
 
   // Get the unique key for this instance
@@ -283,15 +250,8 @@ export class DB {
 
   // Manual delete if needed
   async delete() {
-    clearTimeout(this._saveTimeout);
     await this._storage.delete(this._key);
     instanceCache.delete(this._key);
-    return this;
-  }
-
-  // Wait for load to complete
-  async ready() {
-    await this._loadPromise;
     return this;
   }
 
@@ -303,16 +263,13 @@ export class DB {
     const className = this.name;
     
     for (const key of keys) {
-      // Split key to get the class chain part
       const [classChain] = key.split(':');
       const classes = classChain.split('.');
       const lastClass = classes[classes.length - 1];
       
-      // Only get instances where the last class matches (exact type)
       if (lastClass === className) {
         const uniqueKey = key.split(':')[1];
         const instance = new this(uniqueKey, store);
-        await instance.ready();
         instances.push(instance);
       }
     }
@@ -328,15 +285,12 @@ export class DB {
     const className = this.name;
     
     for (const key of keys) {
-      // Split key to get the class chain part
       const [classChain] = key.split(':');
       const classes = classChain.split('.');
       
-      // Check if this class appears anywhere in the chain
       if (classes.includes(className)) {
         const uniqueKey = key.split(':')[1];
         const instance = new this(uniqueKey, store);
-        await instance.ready();
         instances.push(instance);
       }
     }
@@ -347,245 +301,13 @@ export class DB {
   // Find by unique key (respects full inheritance)
   static async findBy(uniqueKey, storage = null) {
     const store = storage || getDefaultStorage();
-    
-    // We need to search for any key ending with :uniqueKey
     const keys = await store.list();
     const matchingKey = keys.find(k => k.endsWith(`:${uniqueKey}`));
     
     if (matchingKey) {
       const instance = new this(uniqueKey, store);
-      await instance.ready();
       return instance;
     }
     return null;
   }
 }
-
-/* 
-// ========== 6. YOUR CODE - Any depth of inheritance ==========
-
-// Level 1: Base class extending DB
-class Animal extends DB {
-  constructor(uniqueKey, name, age) {
-    super(uniqueKey);  // Just pass the unique key, storage is optional!
-    this.name = name;
-    this.age = age;
-    this.type = 'animal';
-    this.createdAt = new Date();
-  }
-  
-  speak() {
-    console.log(`${this.name} makes a sound`);
-  }
-  
-  celebrateBirthday() {
-    this.age++;
-    // Auto-saves!
-  }
-}
-
-// Level 2: Extending Animal
-class Mammal extends Animal {
-  constructor(uniqueKey, name, age, furColor) {
-    super(uniqueKey, name, age);  // Pass unique key up
-    this.furColor = furColor;
-    this.type = 'mammal';
-    this.warmBlooded = true;
-    this.glands = new Set(['mammary']);
-  }
-  
-  speak() {
-    console.log(`${this.name} makes a mammal sound`);
-  }
-  
-  shedFur() {
-    console.log(`${this.name} is shedding`);
-    // Auto-saves!
-  }
-}
-
-// Level 3: Extending Mammal
-class Dog extends Mammal {
-  constructor(uniqueKey, name, age, furColor, breed) {
-    super(uniqueKey, name, age, furColor);  // Pass unique key up
-    this.breed = breed;
-    this.type = 'dog';
-    this.tricks = new Set();
-    this.barkVolume = 5;
-  }
-  
-  speak() {
-    console.log(`${this.name} barks!`);
-  }
-  
-  learnTrick(trick) {
-    this.tricks.add(trick);
-    // Auto-saves!
-  }
-  
-  setBarkVolume(volume) {
-    this.barkVolume = volume;
-  }
-}
-
-// Level 4: Extending Dog
-class GuideDog extends Dog {
-  constructor(uniqueKey, name, age, furColor, breed, trainer) {
-    super(uniqueKey, name, age, furColor, breed);  // Pass unique key up
-    this.trainer = trainer;
-    this.type = 'guideDog';
-    this.isWorking = false;
-    this.skills = new Map([
-      ['guiding', 100],
-      ['obedience', 100]
-    ]);
-  }
-  
-  speak() {
-    console.log(`${this.name} gently nudges`);
-  }
-  
-  toggleWorking() {
-    this.isWorking = !this.isWorking;
-    // Auto-saves!
-  }
-  
-  improveSkill(skill, amount) {
-    this.skills.set(skill, (this.skills.get(skill) || 0) + amount);
-  }
-}
-
-// Another Level 3 class
-class Cat extends Mammal {
-  constructor(uniqueKey, name, age, furColor, livesLeft = 9) {
-    super(uniqueKey, name, age, furColor);
-    this.livesLeft = livesLeft;
-    this.type = 'cat';
-    this.napping = true;
-  }
-  
-  speak() {
-    console.log(`${this.name} meows`);
-  }
-  
-  nap() {
-    this.napping = true;
-  }
-  
-  wakeUp() {
-    this.napping = false;
-  }
-}
-
-// ========== 7. USAGE EXAMPLES ==========
-async function main() {
-  // Storage is optional - uses default JSON storage
-  // const storage = new JSONStorage({ folder: './animals' });
-  // setDefaultStorage(storage); // Optionally set custom default
-
-  console.log('=== Creating animals with inheritance chains ===\n');
-
-  // Create a Dog (Animal <- Mammal <- Dog)
-  const rex = new Dog('rex-123', 'Rex', 3, 'brown', 'German Shepherd');
-  console.log(`Created ${rex.name} the ${rex.breed}`);
-  console.log('Storage key:', rex.storageKey); // "Animal.Mammal.Dog:rex-123"
-  console.log('Inheritance:', rex.inheritanceChain.join(' -> ')); // "Animal -> Mammal -> Dog"
-  
-  // Train some tricks
-  rex.learnTrick('sit');
-  rex.learnTrick('stay');
-  rex.learnTrick('roll over');
-  rex.setBarkVolume(8);
-  
-  // Create a GuideDog (Animal <- Mammal <- Dog <- GuideDog)
-  const buddy = new GuideDog('buddy-456', 'Buddy', 5, 'yellow', 'Labrador', 'Sarah');
-  console.log(`\nCreated ${buddy.name} the Guide Dog`);
-  console.log('Storage key:', buddy.storageKey); // "Animal.Mammal.Dog.GuideDog:buddy-456"
-  console.log('Inheritance:', buddy.inheritanceChain.join(' -> ')); // "Animal -> Mammal -> Dog -> GuideDog"
-  
-  buddy.toggleWorking();
-  buddy.improveSkill('guiding', 10);
-  
-  // Create a Cat (Animal <- Mammal <- Cat)
-  const whiskers = new Cat('whiskers-789', 'Whiskers', 2, 'orange');
-  console.log(`\nCreated ${whiskers.name} the Cat`);
-  console.log('Storage key:', whiskers.storageKey); // "Animal.Mammal.Cat:whiskers-789"
-  console.log('Inheritance:', whiskers.inheritanceChain.join(' -> ')); // "Animal -> Mammal -> Cat"
-  
-  whiskers.nap();
-  
-  // Wait a moment for auto-saves to complete
-  await new Promise(r => setTimeout(r, 200));
-  
-  console.log('\n=== Finding by unique key (respects inheritance) ===\n');
-  
-  // Find by unique key - works across inheritance!
-  const foundDog = await Dog.findBy('rex-123');
-  if (foundDog) {
-    console.log(`Found Dog: ${foundDog.name}, breed: ${foundDog.breed}`);
-    console.log('Tricks:', [...foundDog.tricks]);
-    console.log('Storage key:', foundDog.storageKey);
-  }
-  
-  const foundGuideDog = await GuideDog.findBy('buddy-456');
-  if (foundGuideDog) {
-    console.log(`\nFound GuideDog: ${foundGuideDog.name}, trainer: ${foundGuideDog.trainer}`);
-    console.log('Working:', foundGuideDog.isWorking);
-    console.log('Skills:', Object.fromEntries(foundGuideDog.skills));
-  }
-  
-  console.log('\n=== Getting all instances by class (exact match) ===\n');
-  
-  const allDogs = await Dog.getAll();
-  console.log(`All Dogs (exact match): ${allDogs.length}`);
-  for (const dog of allDogs) {
-    console.log(`- ${dog.name} (${dog.storageKey})`);
-  }
-  
-  const allMammals = await Mammal.getAll();
-  console.log(`\nAll Mammals (exact match): ${allMammals.length}`);
-  for (const mammal of allMammals) {
-    console.log(`- ${mammal.name} (${mammal.constructor.name})`);
-  }
-  
-  console.log('\n=== Getting all instances including subclasses ===\n');
-  
-  const allDogsAndSubclasses = await Dog.getAllIncludingSubclasses();
-  console.log(`All Dogs + subclasses: ${allDogsAndSubclasses.length}`);
-  for (const dog of allDogsAndSubclasses) {
-    console.log(`- ${dog.name} (${dog.constructor.name})`);
-  }
-  
-  const allMammalsAndSubclasses = await Mammal.getAllIncludingSubclasses();
-  console.log(`\nAll Mammals + subclasses: ${allMammalsAndSubclasses.length}`);
-  for (const mammal of allMammalsAndSubclasses) {
-    console.log(`- ${mammal.name} (${mammal.constructor.name})`);
-  }
-  
-  console.log('\n=== Cache demonstration (same unique key = same instance) ===\n');
-  
-  const rex2 = new Dog('rex-123', 'Different', 99, 'wrong', 'Wrong Breed');
-  console.log('Same instance?', rex === rex2); // true
-  console.log('Name still:', rex2.name); // "Rex", not "Different"
-  console.log('Age still:', rex2.age); // 3, not 99
-  
-  console.log('\n=== Auto-save demonstration ===\n');
-  
-  // Just modify properties - auto-saves!
-  rex.celebrateBirthday();
-  rex.learnTrick('play dead');
-  console.log(`${rex.name} is now ${rex.age} years old`);
-  console.log('Tricks:', [...rex.tricks]);
-  
-  // Wait for auto-save
-  await new Promise(r => setTimeout(r, 200));
-  
-  // Create new instance to verify persistence
-  const rexReloaded = new Dog('rex-123');
-  await rexReloaded.ready();
-  console.log(`\nReloaded ${rexReloaded.name}: age ${rexReloaded.age}, ${rexReloaded.tricks.size} tricks`);
-}
-
-// Run it
-main().catch(console.error);
-*/
