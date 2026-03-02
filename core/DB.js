@@ -3,8 +3,43 @@ import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import os from 'os';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// ========== MACHINE ID GENERATION ==========
+/**
+ * Gets a machine-specific identifier
+ * @returns {string} Machine identifier
+ */
+function getMachineId() {
+    try {
+        // Try to get MAC address (most reliable)
+        const interfaces = os.networkInterfaces();
+        for (const [name, addrs] of Object.entries(interfaces)) {
+            for (const addr of addrs) {
+                if (!addr.internal && addr.mac && addr.mac !== '00:00:00:00:00:00') {
+                    return addr.mac.replace(/:/g, '');
+                }
+            }
+        }
+        
+        // Fallback to hostname
+        return os.hostname().replace(/[^a-zA-Z0-9]/g, '');
+    } catch (error) {
+        // Ultimate fallback: random
+        return `machine-${Math.random().toString(36).substr(2, 9)}`;
+    }
+}
+
+/**
+ * Generates a unique ID using machine ID
+ * @returns {string} Unique identifier
+ */
+function generateUniqueId() {
+    const machineId = getMachineId();
+    return `${machineId}`;
+}
 
 // ========== Default Storage Instance (singleton) ==========
 let defaultStorage = null;
@@ -153,17 +188,21 @@ function getInheritanceChain(obj) {
   return chain;
 }
 
-// ========== 5. The DB Class - 100% Synchronous Loading ==========
+// ========== 5. The DB Class - With Options Object ==========
 class DB {
-  constructor(uniqueKey, storage = null) {
-    if (!uniqueKey) {
-      throw new Error('Unique key is required for DB instances');
-    }
+  /**
+   * @param {Object} options - Configuration options
+   * @param {string} [options.id] - Optional unique identifier. If not provided, uses machineID
+   * @param {StorageConnection} [options.storage] - Storage implementation
+   */
+  constructor(options = {}) {
+    // Generate ID if not provided (using machine ID)
+    const finalUniqueKey = options.id || generateUniqueId();
     
     // Use provided storage or get default
-    this._storage = storage || getDefaultStorage();
+    this._storage = options.storage || getDefaultStorage();
     this._autoSave = this._storage.autoSave;
-    this._uniqueKey = uniqueKey;
+    this._uniqueKey = finalUniqueKey;
     
     // Build the full key with inheritance chain
     this._key = this._buildKey();
@@ -269,7 +308,7 @@ class DB {
       
       if (lastClass === className) {
         const uniqueKey = key.split(':')[1];
-        const instance = new this(uniqueKey, store);
+        const instance = new this({ id: uniqueKey, storage: store });
         instances.push(instance);
       }
     }
@@ -290,7 +329,7 @@ class DB {
       
       if (classes.includes(className)) {
         const uniqueKey = key.split(':')[1];
-        const instance = new this(uniqueKey, store);
+        const instance = new this({ id: uniqueKey, storage: store });
         instances.push(instance);
       }
     }
@@ -305,10 +344,20 @@ class DB {
     const matchingKey = keys.find(k => k.endsWith(`:${uniqueKey}`));
     
     if (matchingKey) {
-      const instance = new this(uniqueKey, store);
+      const instance = new this({ id: uniqueKey, storage: store });
       return instance;
     }
     return null;
+  }
+
+  // Static method to get machine ID (useful for debugging)
+  static getMachineId() {
+    return getMachineId();
+  }
+
+  // Static method to generate unique ID
+  static generateUniqueId() {
+    return generateUniqueId();
   }
 }
 

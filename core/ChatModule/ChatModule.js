@@ -3,43 +3,6 @@ import DB from '../DB.js'
 import os from 'os';
 
 // ============================================================================
-// HELPER FUNCTION TO GENERATE UNIQUE ID
-// ============================================================================
-
-/**
- * Generates a unique ID using machine ID
- * @returns {string} Unique identifier
- */
-function generateUniqueId() {
-    const machineId = getMachineId();
-    return `${machineId}`;
-}
-
-/**
- * Gets a machine-specific identifier
- * @returns {string} Machine identifier
- */
-function getMachineId() {
-    try {
-        // Try to get MAC address (most reliable)
-        const interfaces = os.networkInterfaces();
-        for (const [name, addrs] of Object.entries(interfaces)) {
-            for (const addr of addrs) {
-                if (!addr.internal && addr.mac && addr.mac !== '00:00:00:00:00:00') {
-                    return addr.mac.replace(/:/g, '');
-                }
-            }
-        }
-        
-        // Fallback to hostname
-        return os.hostname().replace(/[^a-zA-Z0-9]/g, '');
-    } catch (error) {
-        // Ultimate fallback: random
-        return `machine-${Math.random().toString(36).substr(2, 9)}`;
-    }
-}
-
-// ============================================================================
 // MAIN CHAT MODULE EXTENDING DB
 // ============================================================================
 
@@ -51,14 +14,9 @@ class ChatModule extends DB {
      * @param {boolean} [options.autoSave] - Automatically save changes (default: true)
      */
     constructor(uniqueId, options = {}) {
-        // Generate ID if not provided
-        const id = uniqueId || generateUniqueId();
+     
         
-        // Set up storage
-        const storage = options.storage;
-        
-        // Call DB constructor
-        super(id, storage);
+        super()
         
         // Initialize ChatModule specific properties
         /** 
