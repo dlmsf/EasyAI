@@ -154,7 +154,7 @@ function getInheritanceChain(obj) {
 }
 
 // ========== 5. The DB Class - 100% Synchronous Loading ==========
-export class DB {
+class DB {
   constructor(uniqueKey, storage = null) {
     if (!uniqueKey) {
       throw new Error('Unique key is required for DB instances');
@@ -311,3 +311,5 @@ export class DB {
     return null;
   }
 }
+
+export default DB
