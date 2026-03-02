@@ -1,4 +1,4 @@
-// ========== db.js - Fixed Version (process exits properly) ==========
+// ========== db.js - Complete Auto-Save Version ==========
 import fs from 'fs/promises';
 import fsSync from 'fs';
 import path from 'path';
@@ -10,13 +10,8 @@ import { EventEmitter } from 'events';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ========== MACHINE ID GENERATION ==========
-/**
- * Gets a machine-specific identifier (CONSISTENT between runs)
- * @returns {string} Machine identifier
- */
 function getMachineId() {
     try {
-        // Try to get MAC address (most reliable and consistent)
         const interfaces = os.networkInterfaces();
         for (const [name, addrs] of Object.entries(interfaces)) {
             for (const addr of addrs) {
@@ -25,42 +20,30 @@ function getMachineId() {
                 }
             }
         }
-        
-        // Fallback to hostname (consistent for a machine)
         return os.hostname().replace(/[^a-zA-Z0-9]/g, '');
     } catch (error) {
-        // Ultimate fallback: a consistent ID based on machine path
-        // This ensures the same machine gets the same ID
         return `machine-${crypto.createHash('md5').update(__dirname).digest('hex').substr(0, 8)}`;
     }
 }
 
-/**
- * Generates a consistent unique ID using only machine ID
- * @returns {string} Unique identifier (consistent between runs)
- */
 function generateUniqueId() {
-    // JUST the machine ID - no random bytes, no timestamp
-    // This ensures the same machine gets the same ID every time
     return getMachineId();
 }
 
-// ========== Lock Manager for ACID Compliance (NON-BLOCKING) ==========
+// ========== Lock Manager ==========
 class LockManager {
     constructor() {
         this.locks = new Map();
-        this.timeout = 5000; // 5 second lock timeout
+        this.timeout = 5000;
     }
 
     async acquire(key, timeout = 5000) {
         const startTime = Date.now();
         
-        // Non-blocking check - if locked, wait but don't block the event loop
         while (this.locks.has(key)) {
             if (Date.now() - startTime > timeout) {
                 throw new Error(`Lock acquisition timeout for key: ${key}`);
             }
-            // Use setImmediate to not block the event loop
             await new Promise(resolve => setImmediate(resolve));
         }
         
@@ -78,33 +61,30 @@ class LockManager {
         this.locks.delete(key);
     }
 
-    // Check if a key is locked without waiting
     isLocked(key) {
         return this.locks.has(key);
     }
 }
 
-// ========== Memory Manager with LRU Strategy ==========
+// ========== Memory Manager ==========
 class MemoryManager extends EventEmitter {
     constructor(options = {}) {
         super();
         this.maxInstances = options.maxInstances || 1000;
-        this.maxMemoryPercent = options.maxMemoryPercent || 70; // Max 70% memory usage
-        this.instanceAccess = new Map(); // track last access time
-        this.instanceData = new Map(); // store instance data when unloaded
-        this.unloadTimeout = options.unloadTimeout || 30 * 60 * 1000; // 30 minutes default
-        this.checkInterval = options.checkInterval || 60 * 1000; // Check every minute
+        this.maxMemoryPercent = options.maxMemoryPercent || 70;
+        this.instanceAccess = new Map();
+        this.instanceData = new Map();
+        this.unloadTimeout = options.unloadTimeout || 30 * 60 * 1000;
+        this.checkInterval = options.checkInterval || 60 * 1000;
         this._interval = null;
         this._instanceCount = 0;
     }
 
     startMonitoring() {
-        // Only start if we have instances and no interval running
         if (this._instanceCount > 0 && !this._interval) {
             this._interval = setInterval(() => {
                 this.checkMemoryAndUnload().catch(console.error);
             }, this.checkInterval);
-            // Allow the interval to be the only thing keeping the process alive
             this._interval.unref();
         }
     }
@@ -135,7 +115,6 @@ class MemoryManager extends EventEmitter {
     }
 
     async checkMemoryAndUnload() {
-        // Don't do anything if no instances
         if (this._instanceCount === 0) {
             this.stopMonitoring();
             return;
@@ -151,17 +130,14 @@ class MemoryManager extends EventEmitter {
     async unloadLeastUsed() {
         const now = Date.now();
         const instances = Array.from(this.instanceAccess.entries());
-        
-        // Sort by last access time (oldest first)
         instances.sort((a, b) => a[1].lastAccess - b[1].lastAccess);
         
         let unloaded = 0;
-        const targetUnload = Math.floor(this.instanceAccess.size * 0.2); // Unload 20% of instances
+        const targetUnload = Math.floor(this.instanceAccess.size * 0.2);
         
         for (const [key, data] of instances) {
             if (unloaded >= targetUnload) break;
             
-            // Only unload if not accessed recently
             if (now - data.lastAccess > this.unloadTimeout && !data.dirty) {
                 this.instanceData.set(key, data.serialized);
                 this.instanceAccess.delete(key);
@@ -172,16 +148,16 @@ class MemoryManager extends EventEmitter {
     }
 
     registerAccess(instance) {
-        const key = instance._key;
+        const key = instance.__storageKey;
         this.instanceAccess.set(key, {
             lastAccess: Date.now(),
-            dirty: instance._dirty || false,
-            serialized: instance._getSerializedState()
+            dirty: instance.__dirty || false,
+            serialized: instance.__getSerializedState()
         });
     }
 
     markDirty(instance) {
-        const key = instance._key;
+        const key = instance.__storageKey;
         const data = this.instanceAccess.get(key);
         if (data) {
             data.dirty = true;
@@ -190,11 +166,11 @@ class MemoryManager extends EventEmitter {
     }
 
     markClean(instance) {
-        const key = instance._key;
+        const key = instance.__storageKey;
         const data = this.instanceAccess.get(key);
         if (data) {
             data.dirty = false;
-            data.serialized = instance._getSerializedState();
+            data.serialized = instance.__getSerializedState();
         }
     }
 
@@ -211,7 +187,7 @@ class MemoryManager extends EventEmitter {
     }
 }
 
-// ========== Transaction Logger for ACID ==========
+// ========== Transaction Logger ==========
 class TransactionLogger {
     constructor(storage) {
         this.storage = storage;
@@ -251,7 +227,6 @@ class TransactionLogger {
         const transaction = this.pendingTransactions.get(transactionId);
         if (transaction) {
             await this._log('ROLLBACK', transactionId);
-            // Apply rollback logic here if needed
             this.pendingTransactions.delete(transactionId);
         }
     }
@@ -272,7 +247,7 @@ class TransactionLogger {
     }
 }
 
-// ========== Default Storage Instance (singleton) ==========
+// ========== Default Storage ==========
 let defaultStorage = null;
 
 export function setDefaultStorage(storage) {
@@ -286,7 +261,7 @@ export function getDefaultStorage() {
     return defaultStorage;
 }
 
-// ========== 1. Storage Connection Interface ==========
+// ========== Storage Connection Interface ==========
 export class StorageConnection {
     constructor(options = {}) {
         this.name = options.name || 'app';
@@ -299,7 +274,7 @@ export class StorageConnection {
     async list() { throw new Error('list() must be implemented'); }
 }
 
-// ========== 2. JSON Storage (Enhanced) ==========
+// ========== JSON Storage ==========
 export class JSONStorage extends StorageConnection {
     constructor(options = {}) {
         super(options);
@@ -313,7 +288,6 @@ export class JSONStorage extends StorageConnection {
     }
 
     _getFilePath(key) {
-        // Sanitize key for filesystem
         const sanitizedKey = key.replace(/[^a-zA-Z0-9._:-]/g, '_');
         return path.join(this.folder, `${sanitizedKey}${this.extension}`);
     }
@@ -382,12 +356,10 @@ export class JSONStorage extends StorageConnection {
 
     async save(key, data) {
         this.pendingWrites++;
-        // Queue the write operation
         this.writeQueue.set(key, data);
         
         if (!this.isWriting) {
             this.isWriting = true;
-            // Use setImmediate to not block
             setImmediate(() => this._processWriteQueue());
         }
     }
@@ -396,7 +368,6 @@ export class JSONStorage extends StorageConnection {
         const writes = Array.from(this.writeQueue.entries());
         this.writeQueue.clear();
         
-        // Process writes in batches to avoid blocking
         const batchSize = 5;
         for (let i = 0; i < writes.length; i += batchSize) {
             const batch = writes.slice(i, i + batchSize);
@@ -405,21 +376,18 @@ export class JSONStorage extends StorageConnection {
                 const filePath = this._getFilePath(key);
                 const serialized = this._serialize(data);
                 
-                // Atomic write
                 const tempPath = `${filePath}.tmp`;
                 try {
                     await fs.writeFile(tempPath, JSON.stringify(serialized, null, 2));
                     await fs.rename(tempPath, filePath);
                 } catch (error) {
                     console.error(`Failed to save ${key}:`, error);
-                    // Re-queue failed writes
                     this.writeQueue.set(key, data);
                 }
             });
             
             await Promise.all(writePromises);
             
-            // Allow event loop to breathe between batches
             if (i + batchSize < writes.length) {
                 await new Promise(resolve => setImmediate(resolve));
             }
@@ -428,7 +396,6 @@ export class JSONStorage extends StorageConnection {
         this.pendingWrites = Math.max(0, this.pendingWrites - writes.length);
         this.isWriting = false;
         
-        // Process any new writes
         if (this.writeQueue.size > 0) {
             this.isWriting = true;
             setImmediate(() => this._processWriteQueue());
@@ -464,7 +431,6 @@ export class JSONStorage extends StorageConnection {
         }
     }
 
-    // Wait for all pending writes to complete
     async flush() {
         while (this.pendingWrites > 0 || this.isWriting) {
             await new Promise(resolve => setTimeout(resolve, 10));
@@ -472,13 +438,160 @@ export class JSONStorage extends StorageConnection {
     }
 }
 
-// ========== 3. Enhanced Cache with Memory Management ==========
+// ========== Enhanced Cache ==========
 const instanceCache = new Map();
 const lockManager = new LockManager();
 const memoryManager = new MemoryManager();
 const transactionLogger = new TransactionLogger(getDefaultStorage());
+const pendingSaves = new Map(); // Debounce saves
+const SAVE_DEBOUNCE_TIME = 100; // 100ms
 
-// ========== 4. Helper to get full inheritance chain ==========
+// ========== Auto-Save Proxy Creator ==========
+function createAutoSaveProxy(instance) {
+    let saveTimeout = null;
+    
+    // Schedule a save with debouncing
+    const scheduleSave = () => {
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(() => {
+            instance.__save().catch(console.error);
+            saveTimeout = null;
+        }, SAVE_DEBOUNCE_TIME);
+    };
+    
+    // Recursive proxy creator for nested objects
+    const createNestedProxy = (target, path = []) => {
+        return new Proxy(target, {
+            set(obj, prop, value) {
+                // Skip internal properties
+                if (prop === '__isProxy' || prop === '__target') {
+                    obj[prop] = value;
+                    return true;
+                }
+                
+                // Handle the set
+                obj[prop] = value;
+                
+                // Mark as dirty and schedule save
+                instance.__dirty = true;
+                memoryManager.markDirty(instance);
+                scheduleSave();
+                
+                return true;
+            },
+            
+            get(obj, prop) {
+                // Special properties
+                if (prop === '__isProxy') return true;
+                if (prop === '__target') return obj;
+                
+                const value = obj[prop];
+                
+                // Create proxy for nested objects/arrays
+                if (value && typeof value === 'object' && !value.__isProxy) {
+                    // Don't proxy DB instances
+                    if (value instanceof DB) return value;
+                    
+                    // Create proxy for this nested object
+                    const nestedPath = [...path, prop];
+                    obj[prop] = createNestedProxy(value, nestedPath);
+                    return obj[prop];
+                }
+                
+                return value;
+            },
+            
+            deleteProperty(obj, prop) {
+                delete obj[prop];
+                
+                instance.__dirty = true;
+                memoryManager.markDirty(instance);
+                scheduleSave();
+                
+                return true;
+            }
+        });
+    };
+    
+    // Wrap all methods to detect changes
+    const wrapMethod = (obj, methodName, originalMethod) => {
+        return function(...args) {
+            const result = originalMethod.apply(this, args);
+            
+            // If method modifies the object, schedule save
+            instance.__dirty = true;
+            memoryManager.markDirty(instance);
+            scheduleSave();
+            
+            return result;
+        };
+    };
+    
+    // Create main instance proxy
+    return new Proxy(instance, {
+        set(target, prop, value) {
+            // Skip internal properties
+            if (prop.startsWith('__') || prop === 'constructor') {
+                target[prop] = value;
+                return true;
+            }
+            
+            // Handle the set
+            target[prop] = value;
+            
+            // Mark as dirty and schedule save
+            target.__dirty = true;
+            memoryManager.markDirty(target);
+            scheduleSave();
+            
+            return true;
+        },
+        
+        get(target, prop) {
+            // Internal properties
+            if (prop === '__isProxy') return true;
+            if (prop === '__target') return target;
+            
+            // Get the value
+            const value = target[prop];
+            
+            // Handle methods
+            if (typeof value === 'function' && prop !== 'constructor') {
+                // Wrap the method to detect changes
+                return wrapMethod(target, prop, value);
+            }
+            
+            // Handle nested objects
+            if (value && typeof value === 'object' && !value.__isProxy) {
+                // Don't proxy DB instances
+                if (value instanceof DB) return value;
+                
+                // Create proxy for this nested object
+                target[prop] = createNestedProxy(value, [prop]);
+                return target[prop];
+            }
+            
+            return value;
+        },
+        
+        deleteProperty(target, prop) {
+            if (prop.startsWith('__')) {
+                delete target[prop];
+                return true;
+            }
+            
+            delete target[prop];
+            
+            target.__dirty = true;
+            memoryManager.markDirty(target);
+            scheduleSave();
+            
+            return true;
+        }
+    });
+}
+
+// ========== Helper to get inheritance chain ==========
 function getInheritanceChain(obj) {
     const chain = [];
     let proto = obj.constructor;
@@ -491,22 +604,22 @@ function getInheritanceChain(obj) {
     return chain;
 }
 
-// ========== 5. The Enhanced DB Class ==========
+// ========== The Enhanced DB Class ==========
 class DB {
     constructor(options = {}) {
-        // Generate ID if not provided (NOW CONSISTENT)
+        // Generate ID if not provided
         const finalUniqueKey = options.id || generateUniqueId();
         
         // Use provided storage or get default
-        this._storage = options.storage || getDefaultStorage();
-        this._autoSave = this._storage.autoSave;
-        this._uniqueKey = finalUniqueKey;
+        this.__storage = options.storage || getDefaultStorage();
+        this.__autoSave = this.__storage.autoSave;
+        this.__uniqueKey = finalUniqueKey;
         
         // Build the full key with inheritance chain
-        this._key = this._buildKey();
+        this.__buildKey();
         
         // Check cache
-        const cacheKey = this._key;
+        const cacheKey = this.__storageKey;
         if (instanceCache.has(cacheKey)) {
             return instanceCache.get(cacheKey);
         }
@@ -520,28 +633,37 @@ class DB {
             }
         }
         
-        // LOAD SYNCHRONOUSLY (non-blocking)
-        this._loadSync();
+        // Load existing data
+        this.__loadSync();
         
+        // Initialize state
+        this.__dirty = false;
+        
+        // Add to cache
         instanceCache.set(cacheKey, this);
         memoryManager.registerAccess(this);
         memoryManager.incrementInstanceCount();
         
-        return this;
+        // Return auto-save proxy
+        return createAutoSaveProxy(this);
     }
 
-    _loadSync() {
-        // Use try-catch without locks for initial load to avoid blocking
+    __buildKey() {
+        const chain = getInheritanceChain(this);
+        this.__storageKey = `${chain.join('.')}:${this.__uniqueKey}`;
+    }
+
+    __loadSync() {
         try {
-            const filePath = this._storage._getFilePath(this._key);
+            const filePath = this.__storage._getFilePath(this.__storageKey);
             if (fsSync.existsSync(filePath)) {
                 const content = fsSync.readFileSync(filePath, 'utf-8');
                 const data = JSON.parse(content);
-                const deserialized = this._storage._deserialize(data);
+                const deserialized = this.__storage._deserialize(data);
                 
                 // Apply loaded data
                 for (const [key, value] of Object.entries(deserialized)) {
-                    if (!key.startsWith('_')) {
+                    if (!key.startsWith('__')) {
                         this[key] = value;
                     }
                 }
@@ -551,19 +673,17 @@ class DB {
         }
     }
 
-    async _loadWithLock() {
-        // Only use locks for critical operations, not for initial load
-        if (lockManager.isLocked(this._key)) {
-            // If locked, wait a bit but don't block
+    async __loadWithLock() {
+        if (lockManager.isLocked(this.__storageKey)) {
             await new Promise(resolve => setTimeout(resolve, 10));
         }
         
-        const lock = await lockManager.acquire(this._key);
+        const lock = await lockManager.acquire(this.__storageKey);
         try {
-            const data = await this._storage.load(this._key);
+            const data = await this.__storage.load(this.__storageKey);
             if (data) {
                 for (const [key, value] of Object.entries(data)) {
-                    if (!key.startsWith('_')) {
+                    if (!key.startsWith('__')) {
                         this[key] = value;
                     }
                 }
@@ -573,46 +693,33 @@ class DB {
         }
     }
 
-    _buildKey() {
-        const chain = getInheritanceChain(this);
-        return `${chain.join('.')}:${this._uniqueKey}`;
-    }
-
-    _getSerializedState() {
+    __getSerializedState() {
         const state = {};
-        let current = this;
         
-        while (current && current !== Object.prototype) {
-            Object.getOwnPropertyNames(current).forEach(prop => {
-                if (prop.startsWith('_') || prop === 'constructor') return;
-                
-                const descriptor = Object.getOwnPropertyDescriptor(current, prop);
-                if (descriptor && !descriptor.get) {
-                    state[prop] = current[prop];
-                }
-            });
-            current = Object.getPrototypeOf(current);
+        // Get all enumerable properties
+        for (const key in this) {
+            if (key.startsWith('__') || key === 'constructor') continue;
+            state[key] = this[key];
         }
         
         return state;
     }
 
-    async save(transactionId = null) {
-        this._dirty = true;
-        memoryManager.markDirty(this);
+    async __save(transactionId = null) {
+        // Skip if not dirty
+        if (!this.__dirty) return this;
         
-        const state = this._getSerializedState();
+        const state = this.__getSerializedState();
         
-        // Only use locks for critical save operations
-        const lock = await lockManager.acquire(this._key);
+        const lock = await lockManager.acquire(this.__storageKey);
         try {
             if (transactionId) {
-                const oldState = await this._storage.load(this._key);
-                await transactionLogger.logChange(transactionId, this._key, oldState, state);
+                const oldState = await this.__storage.load(this.__storageKey);
+                await transactionLogger.logChange(transactionId, this.__storageKey, oldState, state);
             }
             
-            await this._storage.save(this._key, state);
-            this._dirty = false;
+            await this.__storage.save(this.__storageKey, state);
+            this.__dirty = false;
             memoryManager.markClean(this);
             
         } finally {
@@ -623,9 +730,9 @@ class DB {
     }
 
     async saveWithTransaction() {
-        const transactionId = await transactionLogger.begin(this._key);
+        const transactionId = await transactionLogger.begin(this.__storageKey);
         try {
-            await this.save(transactionId);
+            await this.__save(transactionId);
             await transactionLogger.commit(transactionId);
         } catch (error) {
             await transactionLogger.rollback(transactionId);
@@ -634,36 +741,28 @@ class DB {
         return this;
     }
 
-    async autoSave() {
-        if (this._autoSave) {
-            await this.save();
-        }
-    }
-
-    // Get the unique key
+    // Public API
     get uniqueKey() {
         memoryManager.registerAccess(this);
-        return this._uniqueKey;
+        return this.__uniqueKey;
     }
 
-    // Get the full inheritance chain
     get inheritanceChain() {
         memoryManager.registerAccess(this);
         return getInheritanceChain(this);
     }
 
-    // Get the full storage key
     get storageKey() {
         memoryManager.registerAccess(this);
-        return this._key;
+        return this.__storageKey;
     }
 
     async delete() {
-        const lock = await lockManager.acquire(this._key);
+        const lock = await lockManager.acquire(this.__storageKey);
         try {
-            await this._storage.delete(this._key);
-            instanceCache.delete(this._key);
-            memoryManager.removeUnloadedData(this._key);
+            await this.__storage.delete(this.__storageKey);
+            instanceCache.delete(this.__storageKey);
+            memoryManager.removeUnloadedData(this.__storageKey);
             memoryManager.decrementInstanceCount();
         } finally {
             lock.release();
@@ -671,7 +770,14 @@ class DB {
         return this;
     }
 
-    // Static method to get all instances
+    async reload() {
+        await this.__loadWithLock();
+        this.__dirty = false;
+        memoryManager.markClean(this);
+        return this;
+    }
+
+    // Static methods
     static async getAll(storage = null) {
         const store = storage || getDefaultStorage();
         const keys = await store.list();
@@ -693,7 +799,6 @@ class DB {
         return instances;
     }
     
-    // Get all instances including subclasses
     static async getAllIncludingSubclasses(storage = null) {
         const store = storage || getDefaultStorage();
         const keys = await store.list();
@@ -714,7 +819,6 @@ class DB {
         return instances;
     }
     
-    // Find by unique key
     static async findBy(uniqueKey, storage = null) {
         const store = storage || getDefaultStorage();
         const keys = await store.list();
@@ -727,7 +831,6 @@ class DB {
         return null;
     }
 
-    // Static utility methods
     static getMachineId() {
         return getMachineId();
     }
@@ -736,18 +839,16 @@ class DB {
         return generateUniqueId();
     }
 
-    // Memory management control
     static setMemoryOptions(options) {
         if (options.maxInstances) memoryManager.maxInstances = options.maxInstances;
         if (options.maxMemoryPercent) memoryManager.maxMemoryPercent = options.maxMemoryPercent;
         if (options.unloadTimeout) memoryManager.unloadTimeout = options.unloadTimeout;
     }
 
-    // Force unload from memory
     static async unloadInstance(key) {
         if (instanceCache.has(key)) {
             const instance = instanceCache.get(key);
-            if (!instance._dirty) {
+            if (!instance.__dirty) {
                 instanceCache.delete(key);
                 memoryManager.removeUnloadedData(key);
                 memoryManager.decrementInstanceCount();
@@ -755,15 +856,14 @@ class DB {
         }
     }
 
-    // Flush all pending writes
     static async flushAll() {
-        const writes = [];
+        const saves = [];
         for (const [key, instance] of instanceCache) {
-            if (instance._dirty) {
-                writes.push(instance.save());
+            if (instance.__dirty) {
+                saves.push(instance.__save());
             }
         }
-        await Promise.all(writes);
+        await Promise.all(saves);
         await getDefaultStorage().flush();
     }
 }
