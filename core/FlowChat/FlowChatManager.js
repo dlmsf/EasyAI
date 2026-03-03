@@ -61,11 +61,11 @@ class FlowChatManager {
             admins: [adminId],
             objectives: [],
             messages: [],
-            mode: 'normal', // 'normal', 'management', 'creation'
+            status: 'setup', // 'setup', 'active', 'completed'
             context: {
-                currentObjective: null,
-                pendingCreation: null,
-                lastCommand: null
+                currentObjectiveId: null,
+                pendingFields: [],
+                collectedData: {}
             }
         };
 
@@ -133,22 +133,33 @@ class FlowChatManager {
         return true;
     }
 
-    async addObjective(chatId, adminId, description) {
+    async addObjective(chatId, adminId, objectiveData) {
         const chat = await this.getOrLoadChat(chatId);
         if (!chat || !chat.admins.includes(adminId)) return null;
 
         const objective = {
             id: generateUniqueCode({ length: 6 }),
-            description,
+            description: objectiveData.description,
+            type: objectiveData.type || 'simple', // 'simple', 'form', 'information_gathering'
+            fields: objectiveData.fields || [], // For form-type objectives
+            requiredData: objectiveData.requiredData || [], // Data points to collect
             created: Date.now(),
             createdBy: adminId,
             status: 'active', // 'active', 'completed', 'cancelled'
             completedAt: null,
             progress: 0,
+            collectedData: {}, // Store collected information
             notes: []
         };
 
         chat.objectives.push(objective);
+        
+        // If this is the first objective, change status to active
+        if (chat.status === 'setup' && chat.objectives.length > 0) {
+            chat.status = 'active';
+            chat.context.currentObjectiveId = objective.id;
+        }
+
         await this.saveChat(chatId);
         return objective;
     }
@@ -163,6 +174,19 @@ class FlowChatManager {
         Object.assign(objective, updates);
         if (updates.status === 'completed') {
             objective.completedAt = Date.now();
+            objective.progress = 100;
+            
+            // Move to next objective if available
+            const nextObjective = chat.objectives.find(obj => obj.status === 'active' && obj.id !== objectiveId);
+            if (nextObjective) {
+                chat.context.currentObjectiveId = nextObjective.id;
+            } else {
+                // Check if all objectives are completed
+                const allCompleted = chat.objectives.every(obj => obj.status === 'completed');
+                if (allCompleted) {
+                    chat.status = 'completed';
+                }
+            }
         }
 
         await this.saveChat(chatId);
@@ -176,21 +200,48 @@ class FlowChatManager {
         });
     }
 
-    async deleteObjective(chatId, adminId, objectiveId) {
+    async collectObjectiveData(chatId, objectiveId, field, value) {
         const chat = await this.getOrLoadChat(chatId);
-        if (!chat || !chat.admins.includes(adminId)) return false;
+        if (!chat) return false;
 
-        chat.objectives = chat.objectives.filter(obj => obj.id !== objectiveId);
+        const objective = chat.objectives.find(obj => obj.id === objectiveId);
+        if (!objective) return false;
+
+        // Store collected data
+        objective.collectedData[field] = {
+            value,
+            timestamp: Date.now()
+        };
+
+        // Update progress based on required data
+        if (objective.requiredData && objective.requiredData.length > 0) {
+            const collectedFields = Object.keys(objective.collectedData);
+            const requiredFields = objective.requiredData.map(f => f.name);
+            const completedFields = requiredFields.filter(f => collectedFields.includes(f));
+            objective.progress = Math.round((completedFields.length / requiredFields.length) * 100);
+        }
+
         await this.saveChat(chatId);
         return true;
     }
 
-    setMode(chatId, mode) {
+    async setCurrentObjective(chatId, objectiveId) {
+        const chat = await this.getOrLoadChat(chatId);
+        if (!chat) return false;
+
+        const objective = chat.objectives.find(obj => obj.id === objectiveId);
+        if (!objective || objective.status !== 'active') return false;
+
+        chat.context.currentObjectiveId = objectiveId;
+        await this.saveChat(chatId);
+        return true;
+    }
+
+    getCurrentObjective(chatId) {
         const chat = this.chats.get(chatId);
-        if (chat) {
-            chat.mode = mode;
-            this.saveChat(chatId);
-        }
+        if (!chat || !chat.context.currentObjectiveId) return null;
+        
+        return chat.objectives.find(obj => obj.id === chat.context.currentObjectiveId);
     }
 
     getObjectivesSummary(chatId) {
@@ -200,29 +251,128 @@ class FlowChatManager {
         const total = chat.objectives.length;
         const completed = chat.objectives.filter(obj => obj.status === 'completed').length;
         const inProgress = total - completed;
+        const currentObjective = this.getCurrentObjective(chatId);
 
         return {
             total,
             completed,
             inProgress,
+            status: chat.status,
+            currentObjective: currentObjective ? {
+                id: currentObjective.id,
+                description: currentObjective.description,
+                type: currentObjective.type,
+                progress: currentObjective.progress,
+                collectedData: currentObjective.collectedData,
+                remainingFields: currentObjective.requiredData?.filter(
+                    f => !currentObjective.collectedData[f.name]
+                ) || []
+            } : null,
             objectives: chat.objectives.map(obj => ({
                 id: obj.id,
                 description: obj.description,
+                type: obj.type,
                 status: obj.status,
-                progress: obj.progress
+                progress: obj.progress,
+                collectedData: obj.collectedData
             }))
         };
     }
 
-    formatObjectivesForPrompt(chatId) {
+    formatObjectivesForPrompt(chatId, includeDetails = false) {
         const summary = this.getObjectivesSummary(chatId);
         if (!summary || summary.total === 0) {
             return 'No objectives set yet.';
         }
 
-        return summary.objectives.map(obj => 
-            `[${obj.id}] ${obj.description} - Status: ${obj.status} (${obj.progress}%)`
-        ).join('\n');
+        let output = '📋 **Current Objectives:**\n\n';
+        
+        summary.objectives.forEach(obj => {
+            const statusEmoji = obj.status === 'completed' ? '✅' : 
+                               obj.status === 'active' ? '🔄' : '⏳';
+            
+            output += `${statusEmoji} **${obj.description}**\n`;
+            output += `   Status: ${obj.status} (${obj.progress}%)\n`;
+            
+            if (includeDetails && obj.collectedData && Object.keys(obj.collectedData).length > 0) {
+                output += `   Collected Information:\n`;
+                Object.entries(obj.collectedData).forEach(([key, data]) => {
+                    output += `   - ${key}: ${data.value}\n`;
+                });
+            }
+            
+            if (obj.type === 'form' && obj.requiredData && obj.status !== 'completed') {
+                output += `   Required Information:\n`;
+                obj.requiredData.forEach(field => {
+                    const collected = obj.collectedData[field.name];
+                    const status = collected ? '✅' : '⭕';
+                    output += `   ${status} ${field.name}${field.type ? ` (${field.type})` : ''}: ${field.description || ''}\n`;
+                });
+            }
+            
+            output += '\n';
+        });
+
+        if (summary.currentObjective) {
+            output += `🎯 **Current Focus:** ${summary.currentObjective.description}\n`;
+        }
+
+        if (summary.status === 'completed') {
+            output += '\n✨ **All objectives completed!** ✨\n';
+        }
+
+        return output;
+    }
+
+    async analyzeUserMessage(chatId, message, isAdmin) {
+        const chat = await this.getOrLoadChat(chatId);
+        if (!chat) return { action: 'none', relevance: 0 };
+
+        const summary = this.getObjectivesSummary(chatId);
+        
+        // If no objectives and user is admin, they're in setup mode
+        if (summary.total === 0 && isAdmin) {
+            return {
+                action: 'setup',
+                relevance: 1,
+                message: "You're in setup mode. Please create your first objective."
+            };
+        }
+
+        // If no objectives and user is not admin, they can't do anything
+        if (summary.total === 0 && !isAdmin) {
+            return {
+                action: 'blocked',
+                relevance: 0,
+                message: "This chat is currently being set up. Please wait for objectives to be created."
+            };
+        }
+
+        // If all objectives completed
+        if (summary.status === 'completed') {
+            return {
+                action: 'completed',
+                relevance: 1,
+                message: "All objectives have been completed. The chat session is finished."
+            };
+        }
+
+        // Check if message is relevant to current objective
+        const currentObjective = summary.currentObjective;
+        if (!currentObjective) {
+            return {
+                action: 'no_focus',
+                relevance: 0,
+                message: "No active objective. Please wait for direction."
+            };
+        }
+
+        return {
+            action: 'active',
+            relevance: 1,
+            currentObjective,
+            message: "Processing your message..."
+        };
     }
 
     async cleanup() {
