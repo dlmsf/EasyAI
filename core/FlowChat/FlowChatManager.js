@@ -136,30 +136,50 @@ class FlowChatManager {
     async addObjective(chatId, adminId, objectiveData) {
         const chat = await this.getOrLoadChat(chatId);
         if (!chat || !chat.admins.includes(adminId)) return null;
-
+    
+        // Ensure requiredData is properly structured
+        let requiredData = objectiveData.requiredData || [];
+        
+        // If requiredData is empty but fields exist, build proper structure
+        if (requiredData.length === 0 && objectiveData.fields && objectiveData.fields.length > 0) {
+            requiredData = objectiveData.fields.map(field => {
+                if (typeof field === 'string') {
+                    return {
+                        name: field,
+                        type: 'text',
+                        description: ''
+                    };
+                }
+                return {
+                    name: field.name || 'field',
+                    type: field.type || 'text',
+                    description: field.description || ''
+                };
+            });
+        }
+    
         const objective = {
             id: generateUniqueCode({ length: 6 }),
             description: objectiveData.description,
-            type: objectiveData.type || 'simple', // 'simple', 'form', 'information_gathering'
-            fields: objectiveData.fields || [], // For form-type objectives
-            requiredData: objectiveData.requiredData || [], // Data points to collect
+            type: objectiveData.type || 'simple',
+            fields: objectiveData.fields || [],
+            requiredData: requiredData, // Now properly structured
             created: Date.now(),
             createdBy: adminId,
-            status: 'active', // 'active', 'completed', 'cancelled'
+            status: 'active',
             completedAt: null,
             progress: 0,
-            collectedData: {}, // Store collected information
+            collectedData: {}, // Will store { fieldName: { value, timestamp } }
             notes: []
         };
-
+    
         chat.objectives.push(objective);
         
-        // If this is the first objective, change status to active
         if (chat.status === 'setup' && chat.objectives.length > 0) {
             chat.status = 'active';
             chat.context.currentObjectiveId = objective.id;
         }
-
+    
         await this.saveChat(chatId);
         return objective;
     }
@@ -203,24 +223,30 @@ class FlowChatManager {
     async collectObjectiveData(chatId, objectiveId, field, value) {
         const chat = await this.getOrLoadChat(chatId);
         if (!chat) return false;
-
+    
         const objective = chat.objectives.find(obj => obj.id === objectiveId);
         if (!objective) return false;
-
-        // Store collected data
+    
+        // Store collected data with proper structure
         objective.collectedData[field] = {
-            value,
+            value: value,
             timestamp: Date.now()
         };
-
+    
         // Update progress based on required data
         if (objective.requiredData && objective.requiredData.length > 0) {
             const collectedFields = Object.keys(objective.collectedData);
             const requiredFields = objective.requiredData.map(f => f.name);
             const completedFields = requiredFields.filter(f => collectedFields.includes(f));
             objective.progress = Math.round((completedFields.length / requiredFields.length) * 100);
+            
+            // Auto-complete if all fields collected
+            if (objective.progress === 100 && objective.status === 'active') {
+                objective.status = 'completed';
+                objective.completedAt = Date.now();
+            }
         }
-
+    
         await this.saveChat(chatId);
         return true;
     }
