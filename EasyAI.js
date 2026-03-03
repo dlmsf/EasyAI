@@ -611,9 +611,7 @@ async Chat(messages = [], config = {}) {
 
 
 
-// Complete rewritten FlowChat method for EasyAI.js
-
-// Replace your existing FlowChat method with this fixed version
+// Complete rewritten FlowChat method for EasyAI.js with multi-objective support
 
 async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
     // Initialize FlowChat manager if not exists
@@ -694,26 +692,37 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
         };
     }
     
+    // ========== MULTI-OBJECTIVE INTELLIGENT DETECTION ==========
+    // First, get all active objectives
+    const allObjectives = chat.objectives.filter(obj => obj.status === 'active');
     const objectivesSummary = this.FlowChatManager.formatObjectivesForPrompt(chatid, true, id);
-    const currentObjective = this.FlowChatManager.getCurrentObjective(chatid);
     
-    // ===== FIX: Check for objective creation in BOTH setup and active modes for admins =====
-    // Try to detect if admin wants to create a new objective (works in any mode)
-    if (isAdmin) {
-        // Use AI to detect if this message contains a new objective
+    // For users (non-admins) with multiple objectives, we need intelligent routing
+    if (!isAdmin && allObjectives.length > 0) {
+        
+        // Step 1: Detect which objective the user is referring to
         const objectiveDetectionPrompt = [
             { 
                 role: 'system', 
-                content: `You are an objective detector. Analyze if the user is trying to create a new objective. 
-                Look for phrases like "create objective", "new objective", "add objective", "I want to collect", "I need to track", etc.
-                Respond with JSON only: {
-                    "isObjective": boolean, 
-                    "description": string, 
-                    "type": "simple"|"form",
-                    "registrationType": "single"|"multiple",
-                    "maxRegistrations": number or null,
-                    "fields": array of objects with "name", "type" (text/number/date/choice), "description", "required" (boolean), "unique" (boolean)
-                }` 
+                content: `You are an objective detector. Analyze the user message and determine which objective they want to work on.
+
+Available objectives:
+${allObjectives.map((obj, idx) => `${idx + 1}. "${obj.description}" (ID: ${obj.id})`).join('\n')}
+
+Rules:
+1. If the user explicitly mentions an objective by name/number, select that one
+2. If the user provides data that matches a specific objective's fields, select that one
+3. If the user is continuing a conversation, check their recent registrations
+4. If ambiguous, select the most relevant based on context
+5. If truly ambiguous, set selectedObjectiveId to null for clarification
+
+Respond with JSON only: {
+    "selectedObjectiveId": string or null,
+    "confidence": number 0-1,
+    "reasoning": string,
+    "needsClarification": boolean,
+    "clarificationQuestion": string (if needsClarification)
+}` 
             },
             { role: 'user', content: message }
         ];
@@ -726,8 +735,307 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
             
             const detectionResult = JSON.parse(detection.full_text);
             
+            // If clarification needed, ask the user
+            if (detectionResult.needsClarification && detectionResult.clarificationQuestion) {
+                if (tokenCallback) {
+                    for (const word of detectionResult.clarificationQuestion.split(' ')) {
+                        tokenCallback(word + ' ');
+                        await EasyAI.Sleep(30);
+                    }
+                }
+                
+                await this.FlowChatManager.addMessage(chatid, 'system', detectionResult.clarificationQuestion);
+                
+                return {
+                    full_text: detectionResult.clarificationQuestion,
+                    chatid,
+                    isAdmin: false,
+                    status: chat.status,
+                    objectives: this.FlowChatManager.getObjectivesSummary(chatid)
+                };
+            }
+            
+            // Get the selected objective
+            let targetObjective = null;
+            if (detectionResult.selectedObjectiveId) {
+                targetObjective = chat.objectives.find(obj => obj.id === detectionResult.selectedObjectiveId);
+            }
+            
+            // If no clear objective detected, show all available objectives
+            if (!targetObjective) {
+                const availableObjectivesResponse = `I can help you with multiple objectives. Which one would you like to work on?\n\n${allObjectives.map((obj, idx) => {
+                    const userRegs = obj.registrations?.filter(r => r.userId === id) || [];
+                    const inProgress = userRegs.find(r => r.status === 'in-progress');
+                    const completed = userRegs.filter(r => r.status === 'completed').length;
+                    
+                    let status = `📝 ${obj.description}`;
+                    if (inProgress) status += ` (in progress)`;
+                    else if (completed > 0) status += ` (${completed} completed)`;
+                    
+                    return `${idx + 1}. ${status}`;
+                }).join('\n')}\n\nPlease tell me which objective number or name you want to work on.`;
+                
+                if (tokenCallback) {
+                    for (const word of availableObjectivesResponse.split(' ')) {
+                        tokenCallback(word + ' ');
+                        await EasyAI.Sleep(30);
+                    }
+                }
+                
+                await this.FlowChatManager.addMessage(chatid, 'system', availableObjectivesResponse);
+                
+                return {
+                    full_text: availableObjectivesResponse,
+                    chatid,
+                    isAdmin: false,
+                    status: chat.status,
+                    objectives: this.FlowChatManager.getObjectivesSummary(chatid)
+                };
+            }
+            
+            // ===== PROCESS DATA FOR THE SELECTED OBJECTIVE =====
+            // Now we know exactly which objective to work on
+            if (targetObjective.type === 'form') {
+                
+                // Check if user can submit more data to this objective
+                const userRegistrations = targetObjective.registrations?.filter(r => r.userId === id) || [];
+                const inProgressReg = userRegistrations.find(r => r.status === 'in-progress');
+                
+                // Check registration limits
+                if (targetObjective.registrationType === 'single' && 
+                    userRegistrations.some(r => r.status === 'completed')) {
+                    
+                    const blockedResponse = `You have already completed the objective "${targetObjective.description}". Multiple registrations are not allowed for this objective.`;
+                    
+                    if (tokenCallback) {
+                        for (const word of blockedResponse.split(' ')) {
+                            tokenCallback(word + ' ');
+                            await EasyAI.Sleep(30);
+                        }
+                    }
+                    
+                    return {
+                        full_text: blockedResponse,
+                        chatid,
+                        isAdmin: false,
+                        status: 'active'
+                    };
+                }
+                
+                if (targetObjective.maxRegistrations && 
+                    userRegistrations.length >= targetObjective.maxRegistrations) {
+                    
+                    const blockedResponse = `You have reached the maximum number of registrations (${targetObjective.maxRegistrations}) for objective "${targetObjective.description}".`;
+                    
+                    if (tokenCallback) {
+                        for (const word of blockedResponse.split(' ')) {
+                            tokenCallback(word + ' ');
+                            await EasyAI.Sleep(30);
+                        }
+                    }
+                    
+                    return {
+                        full_text: blockedResponse,
+                        chatid,
+                        isAdmin: false,
+                        status: 'active'
+                    };
+                }
+                
+                // Find missing fields for this objective
+                let missingFields = [];
+                if (inProgressReg) {
+                    missingFields = targetObjective.requiredData?.filter(
+                        f => f.required && !inProgressReg.collectedData[f.name]
+                    ) || [];
+                } else {
+                    missingFields = targetObjective.requiredData?.filter(f => f.required) || [];
+                }
+                
+                if (missingFields.length > 0) {
+                    // Extract field values for THIS objective only
+                    const fieldExtractionPrompt = [
+                        { 
+                            role: 'system', 
+                            content: `You are a data extractor. Extract values for these fields from the user message for objective "${targetObjective.description}": ${JSON.stringify(missingFields)}.
+                            
+Rules:
+1. Only extract values that match the field names and types
+2. If multiple fields mentioned, extract all
+3. Validate data types (text, number, date, choice)
+4. Respond with JSON only: {"extracted": [{"name": "fieldName", "value": "extractedValue"}]}
+5. If no values can be extracted, return {"extracted": []}` 
+                        },
+                        { role: 'user', content: message }
+                    ];
+                    
+                    try {
+                        const extraction = await this.Chat(fieldExtractionPrompt, { 
+                            temperature: 0.1, 
+                            response_format: { type: "json_object" } 
+                        });
+                        
+                        const extracted = JSON.parse(extraction.full_text);
+                        
+                        if (extracted.extracted && extracted.extracted.length > 0) {
+                            // Store each extracted field value in the CORRECT objective
+                            for (const field of extracted.extracted) {
+                                if (field.name && field.value) {
+                                    const result = await this.FlowChatManager.collectObjectiveData(
+                                        chatid, 
+                                        targetObjective.id,  // Use detected objective ID
+                                        field.name, 
+                                        field.value,
+                                        id
+                                    );
+                                    
+                                    if (result && !result.success) {
+                                        const errorResponse = result.message;
+                                        if (tokenCallback) {
+                                            for (const word of errorResponse.split(' ')) {
+                                                tokenCallback(word + ' ');
+                                                await EasyAI.Sleep(30);
+                                            }
+                                        }
+                                        
+                                        return {
+                                            full_text: errorResponse,
+                                            chatid,
+                                            isAdmin: false,
+                                            status: 'active'
+                                        };
+                                    }
+                                }
+                            }
+                            
+                            // Get updated objective data
+                            const updatedObjective = chat.objectives.find(obj => obj.id === targetObjective.id);
+                            const updatedUserReg = updatedObjective?.registrations?.find(r => r.userId === id && r.status === 'in-progress');
+                            
+                            // Show progress update for THIS objective
+                            const userProgress = this.formatSingleObjectiveProgress(updatedObjective, id);
+                            
+                            if (updatedUserReg && updatedUserReg.status === 'completed') {
+                                const completionResponse = `✅ Registration completed for "${updatedObjective.description}"!\n\n${userProgress}\n\n`;
+                                
+                                // Check if there are other active objectives
+                                const otherActive = allObjectives.filter(obj => obj.id !== targetObjective.id && obj.status === 'active');
+                                const finalResponse = otherActive.length > 0 
+                                    ? completionResponse + `You can now work on other objectives: ${otherActive.map(o => `"${o.description}"`).join(', ')}`
+                                    : completionResponse + `All objectives completed!`;
+                                
+                                if (tokenCallback) {
+                                    for (const word of finalResponse.split(' ')) {
+                                        tokenCallback(word + ' ');
+                                        await EasyAI.Sleep(30);
+                                    }
+                                }
+                                
+                                await this.FlowChatManager.addMessage(chatid, 'system', finalResponse);
+                                
+                                return {
+                                    full_text: finalResponse,
+                                    chatid,
+                                    isAdmin: false,
+                                    status: chat.status,
+                                    objectives: this.FlowChatManager.getObjectivesSummary(chatid)
+                                };
+                            } else {
+                                // Still need more fields for THIS objective
+                                const remainingFields = updatedObjective?.requiredData?.filter(
+                                    f => f.required && !updatedUserReg?.collectedData[f.name]
+                                ) || [];
+                                
+                                if (remainingFields.length > 0) {
+                                    const nextFieldPrompt = `For objective "${updatedObjective.description}":\n\nNext, I need:\n${
+                                        remainingFields.map(f => `- ${f.name} (${f.type}): ${f.description || 'No description'}`).join('\n')
+                                    }\n\nPlease provide the next piece of information.`;
+                                    
+                                    if (tokenCallback) {
+                                        for (const word of nextFieldPrompt.split(' ')) {
+                                            tokenCallback(word + ' ');
+                                            await EasyAI.Sleep(30);
+                                        }
+                                    }
+                                    
+                                    await this.FlowChatManager.addMessage(chatid, 'system', nextFieldPrompt);
+                                    
+                                    return {
+                                        full_text: nextFieldPrompt,
+                                        chatid,
+                                        isAdmin: false,
+                                        status: 'active'
+                                    };
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error extracting field data:', error);
+                    }
+                }
+            }
+            
+            // If we get here, continue with normal conversation for this objective
+            // Set this as the current objective temporarily for the conversation
+            await this.FlowChatManager.setCurrentObjective(chatid, targetObjective.id);
+            
+        } catch (error) {
+            console.error('Error in objective detection:', error);
+            // Fall back to showing all objectives
+            const fallbackResponse = `I see multiple objectives available. Which one would you like to work on?\n\n${allObjectives.map((obj, idx) => `${idx + 1}. ${obj.description}`).join('\n')}`;
+            
+            if (tokenCallback) {
+                for (const word of fallbackResponse.split(' ')) {
+                    tokenCallback(word + ' ');
+                    await EasyAI.Sleep(30);
+                }
+            }
+            
+            return {
+                full_text: fallbackResponse,
+                chatid,
+                isAdmin: false,
+                status: chat.status
+            };
+        }
+    }
+    
+    // ========== ADMIN OBJECTIVE CREATION ==========
+    if (isAdmin) {
+        // Try to detect if admin wants to create a new objective
+        const objectiveCreationPrompt = [
+            { 
+                role: 'system', 
+                content: `You are an objective detector. Analyze if the user is trying to create a new objective.
+                
+Look for phrases like:
+- "create objective", "new objective", "add objective"
+- "I want to collect", "I need to track", "setup a form"
+- "add another objective", "create second objective"
+
+Current objectives count: ${allObjectives.length}
+
+Respond with JSON only: {
+    "isObjective": boolean,
+    "description": string,
+    "type": "simple"|"form",
+    "registrationType": "single"|"multiple",
+    "maxRegistrations": number or null,
+    "fields": array of objects with "name", "type" (text/number/date/choice/email/phone), "description", "required" (boolean), "unique" (boolean)
+}` 
+            },
+            { role: 'user', content: message }
+        ];
+        
+        try {
+            const detection = await this.Chat(objectiveCreationPrompt, { 
+                temperature: 0.1, 
+                response_format: { type: "json_object" } 
+            });
+            
+            const detectionResult = JSON.parse(detection.full_text);
+            
             if (detectionResult.isObjective) {
-                // Create the objective with proper configuration
                 const fields = detectionResult.fields || [];
                 
                 const newObjective = await this.FlowChatManager.addObjective(chatid, id, {
@@ -746,13 +1054,9 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
                 });
                 
                 if (newObjective) {
-                    // Get updated summary
                     const updatedSummary = this.FlowChatManager.formatObjectivesForPrompt(chatid, true, id);
                     
-                    // Check if this is the first objective (was in setup mode) or additional objective
-                    const creationResponse = chat.status === 'setup' 
-                        ? `✅ First objective created successfully!\n\n${updatedSummary}\n\nWould you like to create another objective, or start working on this one?`
-                        : `✅ Additional objective created successfully!\n\n${updatedSummary}\n\nYou now have multiple objectives. You can switch between them or continue working.`;
+                    const creationResponse = `✅ New objective created: "${detectionResult.description}"\n\n${updatedSummary}\n\nTotal active objectives: ${allObjectives.length + 1}`;
                     
                     if (tokenCallback) {
                         for (const word of creationResponse.split(' ')) {
@@ -773,17 +1077,16 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
                 }
             }
         } catch (error) {
-            console.error('Error detecting objective:', error);
-            // Continue with normal flow if detection fails
+            console.error('Error detecting objective creation:', error);
         }
     }
     
+    // ========== NORMAL CONVERSATION FLOW ==========
     // Build prompt based on chat status and user role
     let finalPrompt;
     let messages;
     
     if (chat.status === 'setup' && isAdmin) {
-        // Setup mode - creating objectives (but we already handled creation above, so this is for conversation)
         finalPrompt = FlowChatPrompts.SETUP_MODE
             .replace('{history}', chat.messages.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n'));
         
@@ -793,228 +1096,49 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
         ];
         
     } else if (chat.status === 'active') {
-        // Check if this is a data submission for a form objective
-        if (currentObjective && currentObjective.type === 'form') {
-            
-            // Check if user can submit more data
-            const userRegistrations = currentObjective.registrations?.filter(r => r.userId === id) || [];
-            const inProgressReg = userRegistrations.find(r => r.status === 'in-progress');
-            
-            // If registrationType is 'single' and user already has completed registration
-            if (currentObjective.registrationType === 'single' && 
-                userRegistrations.some(r => r.status === 'completed')) {
-                
-                const blockedResponse = "You have already completed this objective. Multiple registrations are not allowed for this objective.";
-                
-                if (tokenCallback) {
-                    for (const word of blockedResponse.split(' ')) {
-                        tokenCallback(word + ' ');
-                        await EasyAI.Sleep(30);
-                    }
-                }
-                
-                return {
-                    full_text: blockedResponse,
-                    chatid,
-                    isAdmin,
-                    status: 'active'
-                };
-            }
-            
-            // Check max registrations
-            if (currentObjective.maxRegistrations && 
-                userRegistrations.length >= currentObjective.maxRegistrations) {
-                
-                const blockedResponse = `You have reached the maximum number of registrations (${currentObjective.maxRegistrations}) for this objective.`;
-                
-                if (tokenCallback) {
-                    for (const word of blockedResponse.split(' ')) {
-                        tokenCallback(word + ' ');
-                        await EasyAI.Sleep(30);
-                    }
-                }
-                
-                return {
-                    full_text: blockedResponse,
-                    chatid,
-                    isAdmin,
-                    status: 'active'
-                };
-            }
-            
-            // Find missing fields for current in-progress registration or all fields if new registration
-            let missingFields = [];
-            if (inProgressReg) {
-                // Get fields not yet collected in this registration
-                missingFields = currentObjective.requiredData?.filter(
-                    f => f.required && !inProgressReg.collectedData[f.name]
-                ) || [];
-            } else {
-                // New registration - need all required fields
-                missingFields = currentObjective.requiredData?.filter(f => f.required) || [];
-            }
-            
-            if (missingFields.length > 0) {
-                // Use AI to extract field values from message
-                const fieldExtractionPrompt = [
-                    { 
-                        role: 'system', 
-                        content: `You are a data extractor. Extract values for these fields from the user message: ${JSON.stringify(missingFields)}. 
-                        Also check if any fields have unique constraint and if the value is appropriate.
-                        Respond with JSON only: {"extracted": [{"name": "fieldName", "value": "extractedValue"}]}. 
-                        If no values can be extracted, return {"extracted": []}.` 
-                    },
-                    { role: 'user', content: message }
-                ];
-                
-                try {
-                    const extraction = await this.Chat(fieldExtractionPrompt, { 
-                        temperature: 0.1, 
-                        response_format: { type: "json_object" } 
-                    });
-                    
-                    const extracted = JSON.parse(extraction.full_text);
-                    
-                    if (extracted.extracted && extracted.extracted.length > 0) {
-                        // Store each extracted field value
-                        for (const field of extracted.extracted) {
-                            if (field.name && field.value) {
-                                const result = await this.FlowChatManager.collectObjectiveData(
-                                    chatid, 
-                                    currentObjective.id, 
-                                    field.name, 
-                                    field.value,
-                                    id
-                                );
-                                
-                                if (result && !result.success) {
-                                    // Handle error (like unique constraint violation)
-                                    const errorResponse = result.message;
-                                    if (tokenCallback) {
-                                        for (const word of errorResponse.split(' ')) {
-                                            tokenCallback(word + ' ');
-                                            await EasyAI.Sleep(30);
-                                        }
-                                    }
-                                    
-                                    return {
-                                        full_text: errorResponse,
-                                        chatid,
-                                        isAdmin,
-                                        status: 'active'
-                                    };
-                                }
-                            }
-                        }
-                        
-                        // Get updated objective data
-                        const updatedObjective = this.FlowChatManager.getCurrentObjective(chatid);
-                        const updatedUserReg = updatedObjective?.registrations?.find(r => r.userId === id && r.status === 'in-progress');
-                        
-                        // Show progress update
-                        const progressSummary = this.FlowChatManager.formatObjectivesForPrompt(chatid, true, id);
-                        
-                        // Check if registration is complete
-                        if (updatedUserReg && updatedUserReg.status === 'completed') {
-                            const completionResponse = `✅ Registration completed successfully!\n\n${progressSummary}\n\nYou can ${updatedObjective.registrationType === 'single' ? 'view your registration' : 'start a new registration'} above.`;
-                            
-                            if (tokenCallback) {
-                                for (const word of completionResponse.split(' ')) {
-                                    tokenCallback(word + ' ');
-                                    await EasyAI.Sleep(30);
-                                }
-                            }
-                            
-                            await this.FlowChatManager.addMessage(chatid, 'system', completionResponse);
-                            
-                            return {
-                                full_text: completionResponse,
-                                chatid,
-                                isAdmin,
-                                status: chat.status,
-                                objectives: this.FlowChatManager.getObjectivesSummary(chatid)
-                            };
-                        } else {
-                            // Still need more fields
-                            const remainingFields = updatedObjective?.requiredData?.filter(
-                                f => f.required && !updatedUserReg?.collectedData[f.name]
-                            ) || [];
-                            
-                            if (remainingFields.length > 0) {
-                                const nextFieldPrompt = `Thanks! I've recorded that information. Next, I need:\n\n${
-                                    remainingFields.map(f => `- ${f.name} (${f.type}): ${f.description || 'No description'}`).join('\n')
-                                }\n\nPlease provide the next piece of information.`;
-                                
-                                if (tokenCallback) {
-                                    for (const word of nextFieldPrompt.split(' ')) {
-                                        tokenCallback(word + ' ');
-                                        await EasyAI.Sleep(30);
-                                    }
-                                }
-                                
-                                await this.FlowChatManager.addMessage(chatid, 'system', nextFieldPrompt);
-                                
-                                return {
-                                    full_text: nextFieldPrompt,
-                                    chatid,
-                                    isAdmin,
-                                    status: 'active'
-                                };
-                            }
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error extracting field data:', error);
-                }
-            }
-        }
+        // Enhanced prompt that shows ALL objectives and lets user choose
+        const currentObjective = this.FlowChatManager.getCurrentObjective(chatid);
         
-        // Generate AI response for normal conversation
-        if (isAdmin) {
-            // Include note that admin can create new objectives anytime
-            const adminContext = currentObjective 
-                ? `Current focus: ${currentObjective.description}`
-                : 'No active objective selected.';
-                
-            finalPrompt = FlowChatPrompts.ACTIVE_MODE_ADMIN
-                .replace('{objectives}', objectivesSummary)
-                .replace('{currentObjective}', adminContext)
-                .replace('{message}', message);
-                
-            // Add reminder about creating new objectives if appropriate
-            if (message.toLowerCase().includes('new objective') || 
-                message.toLowerCase().includes('create objective') ||
-                message.toLowerCase().includes('add objective')) {
-                // We already handled this above, but if we got here, the detection failed
-                // So provide helpful guidance
-                const guidanceResponse = "I notice you mentioned creating a new objective. To help me better understand, please be specific about:\n\n" +
-                    "1. What information do you want to collect?\n" +
-                    "2. What type of data is it (text, number, date, etc.)?\n" +
-                    "3. Can users submit multiple entries or just one?\n" +
-                    "4. Is there a maximum number of submissions per user?\n\n" +
-                    "For example: 'I want to collect project ideas with name and description, multiple entries allowed'";
-                
-                if (tokenCallback) {
-                    for (const word of guidanceResponse.split(' ')) {
-                        tokenCallback(word + ' ');
-                        await EasyAI.Sleep(30);
-                    }
-                }
-                
-                await this.FlowChatManager.addMessage(chatid, 'system', guidanceResponse);
-                
-                return {
-                    full_text: guidanceResponse,
-                    chatid,
-                    isAdmin,
-                    status: chat.status
-                };
+        // Build a comprehensive objectives list with user progress
+        const objectivesList = allObjectives.map(obj => {
+            const userRegs = obj.registrations?.filter(r => r.userId === id) || [];
+            const inProgress = userRegs.find(r => r.status === 'in-progress');
+            const completed = userRegs.filter(r => r.status === 'completed').length;
+            
+            let status = `📋 ${obj.description}`;
+            if (inProgress) {
+                const fieldsDone = Object.keys(inProgress.collectedData).length;
+                const totalFields = obj.requiredData?.filter(f => f.required).length || 0;
+                status += ` (${fieldsDone}/${totalFields} fields)`;
+            } else if (completed > 0) {
+                status += ` (${completed} completed)`;
             }
+            
+            if (obj.id === currentObjective?.id) {
+                status = `👉 ${status} (current focus)`;
+            }
+            
+            return status;
+        }).join('\n');
+        
+        if (isAdmin) {
+            finalPrompt = `You are speaking with an ADMIN user.
+
+Current Objectives:
+${objectivesList}
+
+${allObjectives.length > 0 ? 'The admin can: work on objectives, create new ones, or manage existing ones.' : 'No objectives yet. Help admin create first objective.'}
+
+Admin message: ${message}`;
         } else {
-            finalPrompt = FlowChatPrompts.ACTIVE_MODE_USER
-                .replace('{objectives}', objectivesSummary)
-                .replace('{currentObjective}', currentObjective ? currentObjective.description : 'No active objective')
-                .replace('{message}', message);
+            finalPrompt = `You are speaking with a REGULAR user.
+
+Available Objectives:
+${objectivesList}
+
+${allObjectives.length > 0 ? 'Guide the user to work on any objective they choose. If they mention a specific objective, help them with that one.' : 'No active objectives yet.'}
+
+User message: ${message}`;
         }
         
         messages = [
@@ -1030,7 +1154,7 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
         ];
     }
     
-    // Generate response (only if we haven't returned early)
+    // Generate response
     if (!messages) {
         messages = [
             { role: 'system', content: FlowChatPrompts.SYSTEM },
@@ -1045,7 +1169,7 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
         max_tokens: 800
     });
     
-    // Save response to chat history
+    // Save response
     if (response && response.full_text) {
         await this.FlowChatManager.addMessage(chatid, 'assistant', response.full_text);
     }
@@ -1057,6 +1181,39 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
         status: chat.status,
         objectives: this.FlowChatManager.getObjectivesSummary(chatid)
     };
+}
+
+// Helper method to format progress for a single objective
+formatSingleObjectiveProgress(objective, userId) {
+    if (!objective) return '';
+    
+    const userRegs = objective.registrations?.filter(r => r.userId === userId) || [];
+    const inProgress = userRegs.find(r => r.status === 'in-progress');
+    const completed = userRegs.filter(r => r.status === 'completed').length;
+    
+    let output = `📋 **${objective.description}**\n`;
+    
+    if (inProgress) {
+        output += `   In Progress:\n`;
+        Object.entries(inProgress.collectedData).forEach(([key, data]) => {
+            output += `   - ${key}: ${data.value}\n`;
+        });
+        
+        const missingFields = objective.requiredData?.filter(f => 
+            f.required && !inProgress.collectedData[f.name]
+        ) || [];
+        
+        if (missingFields.length > 0) {
+            output += `   Still need:\n`;
+            missingFields.forEach(f => {
+                output += `   - ${f.name} (${f.type})\n`;
+            });
+        }
+    } else if (completed > 0) {
+        output += `   Completed: ${completed} registration(s)\n`;
+    }
+    
+    return output;
 }
 
 async PrintGenerate(prompt){
