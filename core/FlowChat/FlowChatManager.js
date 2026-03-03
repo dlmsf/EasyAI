@@ -30,6 +30,51 @@ class FlowChatManager {
         try {
             const data = await fs.readFile(this.getChatPath(chatId), 'utf-8');
             const chat = JSON.parse(data);
+            
+            // Migrate old objective format to new format if needed
+            if (chat.objectives) {
+                chat.objectives = chat.objectives.map(obj => {
+                    // If objective doesn't have registrations array, migrate from old collectedData
+                    if (!obj.registrations && obj.collectedData && Object.keys(obj.collectedData).length > 0) {
+                        // Create a registration from old collected data
+                        const registration = {
+                            id: generateUniqueCode({ length: 8 }),
+                            userId: obj.createdBy || 'unknown',
+                            status: obj.status === 'completed' ? 'completed' : 'in-progress',
+                            collectedData: {},
+                            startedAt: obj.created,
+                            completedAt: obj.completedAt
+                        };
+                        
+                        // Migrate each field
+                        Object.entries(obj.collectedData).forEach(([key, value]) => {
+                            if (value && typeof value === 'object' && value.value !== undefined) {
+                                registration.collectedData[key] = {
+                                    value: value.value,
+                                    timestamp: value.timestamp || Date.now()
+                                };
+                            } else {
+                                registration.collectedData[key] = {
+                                    value: value,
+                                    timestamp: Date.now()
+                                };
+                            }
+                        });
+                        
+                        obj.registrations = [registration];
+                    } else if (!obj.registrations) {
+                        obj.registrations = [];
+                    }
+                    
+                    // Set default registration type if not present
+                    if (!obj.registrationType) {
+                        obj.registrationType = 'multiple';
+                    }
+                    
+                    return obj;
+                });
+            }
+            
             this.chats.set(chatId, chat);
             return chat;
         } catch (error) {
@@ -136,7 +181,7 @@ class FlowChatManager {
     async addObjective(chatId, adminId, objectiveData) {
         const chat = await this.getOrLoadChat(chatId);
         if (!chat || !chat.admins.includes(adminId)) return null;
-    
+
         // Ensure requiredData is properly structured
         let requiredData = objectiveData.requiredData || [];
         
@@ -147,40 +192,60 @@ class FlowChatManager {
                     return {
                         name: field,
                         type: 'text',
-                        description: ''
+                        description: '',
+                        required: true,
+                        unique: false,
+                        validation: null,
+                        options: null
                     };
                 }
                 return {
                     name: field.name || 'field',
                     type: field.type || 'text',
-                    description: field.description || ''
+                    description: field.description || '',
+                    required: field.required !== false,
+                    unique: field.unique || false,
+                    validation: field.validation || null,
+                    options: field.options || null
                 };
             });
         }
-    
+
         const objective = {
             id: generateUniqueCode({ length: 6 }),
             description: objectiveData.description,
             type: objectiveData.type || 'simple',
             fields: objectiveData.fields || [],
-            requiredData: requiredData, // Now properly structured
+            requiredData: requiredData,
             created: Date.now(),
             createdBy: adminId,
             status: 'active',
             completedAt: null,
             progress: 0,
-            collectedData: {}, // Will store { fieldName: { value, timestamp } }
+            registrationType: objectiveData.registrationType || 'multiple', // 'single' or 'multiple'
+            maxRegistrations: objectiveData.maxRegistrations || null, // null = unlimited
+            registrations: [], // Array to store multiple registrations
+            collectedData: {}, // Keep for backward compatibility
             notes: []
         };
-    
+
         chat.objectives.push(objective);
         
+        // Set as current objective if this is the first one
         if (chat.status === 'setup' && chat.objectives.length > 0) {
             chat.status = 'active';
             chat.context.currentObjectiveId = objective.id;
         }
-    
+
         await this.saveChat(chatId);
+        
+        LogMaster.Log('Objective Added', { 
+            chatId, 
+            objectiveId: objective.id,
+            registrationType: objective.registrationType,
+            maxRegistrations: objective.maxRegistrations 
+        });
+        
         return objective;
     }
 
@@ -192,6 +257,7 @@ class FlowChatManager {
         if (!objective) return false;
 
         Object.assign(objective, updates);
+        
         if (updates.status === 'completed') {
             objective.completedAt = Date.now();
             objective.progress = 100;
@@ -220,35 +286,348 @@ class FlowChatManager {
         });
     }
 
-    async collectObjectiveData(chatId, objectiveId, field, value) {
+    /**
+     * Collect data for an objective from a specific user
+     * @param {string} chatId - Chat ID
+     * @param {string} objectiveId - Objective ID
+     * @param {string} field - Field name
+     * @param {any} value - Field value
+     * @param {string} userId - User ID submitting the data
+     * @returns {Promise<Object>} Result object with success status and registration data
+     */
+    async collectObjectiveData(chatId, objectiveId, field, value, userId) {
         const chat = await this.getOrLoadChat(chatId);
-        if (!chat) return false;
-    
+        if (!chat) return { success: false, error: 'chat_not_found' };
+
         const objective = chat.objectives.find(obj => obj.id === objectiveId);
-        if (!objective) return false;
-    
-        // Store collected data with proper structure
-        objective.collectedData[field] = {
+        if (!objective) return { success: false, error: 'objective_not_found' };
+
+        // Check if objective is completed
+        if (objective.status === 'completed') {
+            return { 
+                success: false, 
+                error: 'objective_completed',
+                message: 'This objective has been completed and no longer accepts submissions.'
+            };
+        }
+
+        // Validate field exists in requiredData
+        const fieldDef = objective.requiredData.find(f => f.name === field);
+        if (!fieldDef) {
+            return { 
+                success: false, 
+                error: 'invalid_field',
+                message: `Field "${field}" is not defined for this objective.`
+            };
+        }
+
+        // Check if this is a new registration or continuing existing one
+        let currentRegistration = objective.registrations.find(
+            r => r.userId === userId && r.status === 'in-progress'
+        );
+
+        if (!currentRegistration) {
+            // Check if user can create new registration based on registration type
+            const userRegistrations = objective.registrations.filter(r => r.userId === userId);
+            
+            if (objective.registrationType === 'single') {
+                // Check if user already has a completed registration
+                const existingComplete = userRegistrations.find(r => r.status === 'completed');
+                if (existingComplete) {
+                    return { 
+                        success: false, 
+                        error: 'single_registration_limit',
+                        message: 'You have already completed this objective. Multiple registrations are not allowed.'
+                    };
+                }
+            }
+
+            if (objective.maxRegistrations) {
+                if (userRegistrations.length >= objective.maxRegistrations) {
+                    return { 
+                        success: false, 
+                        error: 'max_registrations_reached',
+                        message: `Maximum registrations (${objective.maxRegistrations}) reached for this objective.`
+                    };
+                }
+            }
+
+            // Check if any field has unique constraint and value already exists
+            if (fieldDef.unique) {
+                const existingValue = objective.registrations.some(r => 
+                    r.collectedData[field] && r.collectedData[field].value === value
+                );
+                if (existingValue) {
+                    return {
+                        success: false,
+                        error: 'unique_constraint_violation',
+                        message: `The value "${value}" for field "${field}" has already been used and must be unique.`
+                    };
+                }
+            }
+
+            // Create new registration
+            currentRegistration = {
+                id: generateUniqueCode({ length: 8 }),
+                userId: userId,
+                status: 'in-progress',
+                collectedData: {},
+                startedAt: Date.now(),
+                completedAt: null,
+                metadata: {
+                    userAgent: null, // Can be populated if needed
+                    ipAddress: null,
+                    sessionId: null
+                }
+            };
+            objective.registrations.push(currentRegistration);
+        } else {
+            // Check unique constraint for existing registration
+            if (fieldDef.unique) {
+                // Check if any OTHER registration has this value
+                const existingValue = objective.registrations.some(r => 
+                    r.id !== currentRegistration.id && 
+                    r.collectedData[field] && 
+                    r.collectedData[field].value === value
+                );
+                if (existingValue) {
+                    return {
+                        success: false,
+                        error: 'unique_constraint_violation',
+                        message: `The value "${value}" for field "${field}" has already been used by another user and must be unique.`
+                    };
+                }
+            }
+        }
+
+        // Store the field value
+        currentRegistration.collectedData[field] = {
             value: value,
             timestamp: Date.now()
         };
-    
-        // Update progress based on required data
-        if (objective.requiredData && objective.requiredData.length > 0) {
-            const collectedFields = Object.keys(objective.collectedData);
-            const requiredFields = objective.requiredData.map(f => f.name);
-            const completedFields = requiredFields.filter(f => collectedFields.includes(f));
-            objective.progress = Math.round((completedFields.length / requiredFields.length) * 100);
-            
-            // Auto-complete if all fields collected
-            if (objective.progress === 100 && objective.status === 'active') {
-                objective.status = 'completed';
-                objective.completedAt = Date.now();
+
+        // Validate data type if specified
+        if (fieldDef.type) {
+            const validation = this.validateFieldValue(fieldDef, value);
+            if (!validation.valid) {
+                return {
+                    success: false,
+                    error: 'validation_failed',
+                    message: validation.message
+                };
             }
         }
-    
+
+        // Check if registration is complete (all required fields collected)
+        if (objective.requiredData && objective.requiredData.length > 0) {
+            const collectedFields = Object.keys(currentRegistration.collectedData);
+            const requiredFields = objective.requiredData
+                .filter(f => f.required)
+                .map(f => f.name);
+            
+            const allRequiredCollected = requiredFields.every(f => collectedFields.includes(f));
+            
+            if (allRequiredCollected) {
+                currentRegistration.status = 'completed';
+                currentRegistration.completedAt = Date.now();
+                
+                LogMaster.Log('Registration Completed', {
+                    chatId,
+                    objectiveId,
+                    registrationId: currentRegistration.id,
+                    userId
+                });
+            }
+
+            // Update overall objective progress based on completed registrations
+            const totalRegistrations = objective.registrations.length;
+            const completedRegistrations = objective.registrations.filter(r => r.status === 'completed').length;
+            
+            if (objective.maxRegistrations) {
+                objective.progress = Math.round((completedRegistrations / objective.maxRegistrations) * 100);
+                
+                // Auto-complete objective if max registrations reached
+                if (completedRegistrations >= objective.maxRegistrations) {
+                    objective.status = 'completed';
+                    objective.completedAt = Date.now();
+                    
+                    LogMaster.Log('Objective Auto-Completed', {
+                        chatId,
+                        objectiveId,
+                        completedRegistrations,
+                        maxRegistrations: objective.maxRegistrations
+                    });
+                }
+            } else {
+                // For unlimited registrations, progress is based on total registrations
+                objective.progress = totalRegistrations > 0 ? 50 : 0; // Arbitrary, just shows activity
+            }
+        }
+
         await this.saveChat(chatId);
-        return true;
+        
+        return { 
+            success: true, 
+            registration: currentRegistration,
+            objective: objective,
+            isComplete: currentRegistration.status === 'completed'
+        };
+    }
+
+    /**
+     * Validate field value based on field definition
+     * @param {Object} fieldDef - Field definition
+     * @param {any} value - Value to validate
+     * @returns {Object} Validation result
+     */
+    validateFieldValue(fieldDef, value) {
+        // Type validation
+        switch (fieldDef.type) {
+            case 'number':
+                if (isNaN(Number(value))) {
+                    return { valid: false, message: `Field "${fieldDef.name}" must be a number.` };
+                }
+                break;
+            case 'date':
+                if (isNaN(Date.parse(value))) {
+                    return { valid: false, message: `Field "${fieldDef.name}" must be a valid date.` };
+                }
+                break;
+            case 'choice':
+                if (fieldDef.options && !fieldDef.options.includes(value)) {
+                    return { 
+                        valid: false, 
+                        message: `Field "${fieldDef.name}" must be one of: ${fieldDef.options.join(', ')}` 
+                    };
+                }
+                break;
+            case 'email':
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(value)) {
+                    return { valid: false, message: `Field "${fieldDef.name}" must be a valid email address.` };
+                }
+                break;
+            case 'phone':
+                const phoneRegex = /^[\d\s\-+()]+$/;
+                if (!phoneRegex.test(value)) {
+                    return { valid: false, message: `Field "${fieldDef.name}" must be a valid phone number.` };
+                }
+                break;
+        }
+
+        // Custom validation if provided
+        if (fieldDef.validation) {
+            try {
+                const validationFn = new Function('value', `return ${fieldDef.validation}`);
+                if (!validationFn(value)) {
+                    return { valid: false, message: `Field "${fieldDef.name}" failed validation.` };
+                }
+            } catch (error) {
+                console.error('Error in custom validation:', error);
+            }
+        }
+
+        return { valid: true };
+    }
+
+    /**
+     * Get all registrations for a specific user in an objective
+     * @param {string} chatId - Chat ID
+     * @param {string} objectiveId - Objective ID
+     * @param {string} userId - User ID
+     * @returns {Array} User's registrations
+     */
+    async getUserRegistrations(chatId, objectiveId, userId) {
+        const chat = await this.getOrLoadChat(chatId);
+        if (!chat) return null;
+
+        const objective = chat.objectives.find(obj => obj.id === objectiveId);
+        if (!objective) return null;
+
+        return objective.registrations.filter(r => r.userId === userId);
+    }
+
+    /**
+     * Get all registrations for an objective
+     * @param {string} chatId - Chat ID
+     * @param {string} objectiveId - Objective ID
+     * @returns {Array} All registrations
+     */
+    async getAllRegistrations(chatId, objectiveId) {
+        const chat = await this.getOrLoadChat(chatId);
+        if (!chat) return null;
+
+        const objective = chat.objectives.find(obj => obj.id === objectiveId);
+        if (!objective) return null;
+
+        return objective.registrations;
+    }
+
+    /**
+     * Get statistics for an objective
+     * @param {string} chatId - Chat ID
+     * @param {string} objectiveId - Objective ID
+     * @returns {Object} Statistics
+     */
+    async getObjectiveStats(chatId, objectiveId) {
+        const chat = await this.getOrLoadChat(chatId);
+        if (!chat) return null;
+
+        const objective = chat.objectives.find(obj => obj.id === objectiveId);
+        if (!objective) return null;
+
+        const totalRegistrations = objective.registrations.length;
+        const completedRegistrations = objective.registrations.filter(r => r.status === 'completed').length;
+        const inProgressRegistrations = totalRegistrations - completedRegistrations;
+        
+        // Unique users count
+        const uniqueUsers = new Set(objective.registrations.map(r => r.userId)).size;
+        
+        // Field completion stats
+        const fieldStats = {};
+        objective.requiredData.forEach(field => {
+            const completedCount = objective.registrations.filter(r => 
+                r.collectedData[field.name]
+            ).length;
+            fieldStats[field.name] = {
+                total: totalRegistrations,
+                completed: completedCount,
+                completionRate: totalRegistrations > 0 ? (completedCount / totalRegistrations) * 100 : 0
+            };
+        });
+
+        return {
+            objectiveId: objective.id,
+            description: objective.description,
+            registrationType: objective.registrationType,
+            maxRegistrations: objective.maxRegistrations,
+            totalRegistrations,
+            completedRegistrations,
+            inProgressRegistrations,
+            uniqueUsers,
+            fieldStats,
+            status: objective.status,
+            progress: objective.progress
+        };
+    }
+
+    /**
+     * Get the current in-progress registration for a user in an objective
+     * @param {string} chatId - Chat ID
+     * @param {string} objectiveId - Objective ID
+     * @param {string} userId - User ID
+     * @returns {Object|null} Current registration or null
+     */
+    getCurrentUserRegistration(chatId, objectiveId, userId) {
+        const chat = this.chats.get(chatId);
+        if (!chat) return null;
+
+        const objective = chat.objectives.find(obj => obj.id === objectiveId);
+        if (!objective) return null;
+
+        return objective.registrations.find(
+            r => r.userId === userId && r.status === 'in-progress'
+        ) || null;
     }
 
     async setCurrentObjective(chatId, objectiveId) {
@@ -270,6 +649,111 @@ class FlowChatManager {
         return chat.objectives.find(obj => obj.id === chat.context.currentObjectiveId);
     }
 
+    /**
+     * Format objectives for prompt display
+     * @param {string} chatId - Chat ID
+     * @param {boolean} includeDetails - Include detailed information
+     * @param {string} userId - User ID to show user-specific data
+     * @returns {string} Formatted objectives
+     */
+    formatObjectivesForPrompt(chatId, includeDetails = false, userId = null) {
+        const summary = this.getObjectivesSummary(chatId);
+        if (!summary || summary.total === 0) {
+            return 'No objectives set yet.';
+        }
+
+        let output = '📋 **Current Objectives:**\n\n';
+        
+        summary.objectives.forEach(obj => {
+            const statusEmoji = obj.status === 'completed' ? '✅' : 
+                               obj.status === 'active' ? '🔄' : '⏳';
+            
+            output += `${statusEmoji} **${obj.description}**\n`;
+            output += `   Status: ${obj.status} (${obj.progress}%)\n`;
+            
+            // Registration type info
+            const regTypeText = obj.registrationType === 'single' ? 'One entry per user' : 'Multiple entries allowed';
+            output += `   Type: ${regTypeText}\n`;
+            
+            if (obj.maxRegistrations) {
+                output += `   Max Registrations: ${obj.maxRegistrations} per user\n`;
+            }
+
+            // Show user's registrations if userId provided
+            if (userId && obj.registrations) {
+                const userRegs = obj.registrations.filter(r => r.userId === userId);
+                const completedRegs = userRegs.filter(r => r.status === 'completed').length;
+                const inProgressReg = userRegs.find(r => r.status === 'in-progress');
+                
+                output += `   Your Registrations: ${completedRegs} completed`;
+                if (inProgressReg) {
+                    output += `, 1 in progress\n`;
+                    
+                    // Show collected data for in-progress registration
+                    if (Object.keys(inProgressReg.collectedData).length > 0) {
+                        output += `   Current Data:\n`;
+                        Object.entries(inProgressReg.collectedData).forEach(([key, data]) => {
+                            output += `   - ${key}: ${data.value}\n`;
+                        });
+                    }
+                    
+                    // Show remaining fields
+                    if (obj.requiredData) {
+                        const missingFields = obj.requiredData.filter(f => 
+                            f.required && !inProgressReg.collectedData[f.name]
+                        );
+                        if (missingFields.length > 0) {
+                            output += `   Still Need:\n`;
+                            missingFields.forEach(f => {
+                                output += `   - ${f.name} (${f.type}): ${f.description || 'No description'}\n`;
+                            });
+                        }
+                    }
+                } else {
+                    output += `\n`;
+                }
+            }
+            
+            // Show total stats if admin or includeDetails
+            if (includeDetails && obj.registrations && obj.registrations.length > 0) {
+                output += `   Total Registrations: ${obj.registrations.length}\n`;
+                const completed = obj.registrations.filter(r => r.status === 'completed').length;
+                output += `   Completed: ${completed}\n`;
+                const uniqueUsers = new Set(obj.registrations.map(r => r.userId)).size;
+                output += `   Unique Users: ${uniqueUsers}\n`;
+            }
+            
+            // Show field requirements
+            if (obj.type === 'form' && obj.requiredData && obj.requiredData.length > 0) {
+                output += `   Required Information:\n`;
+                obj.requiredData.forEach(field => {
+                    const required = field.required ? '(required)' : '(optional)';
+                    const unique = field.unique ? '🔒 unique' : '';
+                    const type = field.type ? `[${field.type}]` : '';
+                    output += `   - ${field.name} ${type} ${required} ${unique}\n`;
+                    if (field.description) {
+                        output += `     └ ${field.description}\n`;
+                    }
+                    if (field.type === 'choice' && field.options) {
+                        output += `     Options: ${field.options.join(', ')}\n`;
+                    }
+                });
+            }
+            
+            output += '\n';
+        });
+
+        if (summary.currentObjective) {
+            output += `🎯 **Current Focus:** ${summary.currentObjective.description}\n`;
+        }
+
+        if (summary.status === 'completed') {
+            output += '\n✨ **All objectives completed!** ✨\n';
+        }
+
+        return output;
+    }
+
     getObjectivesSummary(chatId) {
         const chat = this.chats.get(chatId);
         if (!chat) return null;
@@ -289,6 +773,10 @@ class FlowChatManager {
                 description: currentObjective.description,
                 type: currentObjective.type,
                 progress: currentObjective.progress,
+                registrationType: currentObjective.registrationType,
+                maxRegistrations: currentObjective.maxRegistrations,
+                registrations: currentObjective.registrations,
+                requiredData: currentObjective.requiredData,
                 collectedData: currentObjective.collectedData,
                 remainingFields: currentObjective.requiredData?.filter(
                     f => !currentObjective.collectedData[f.name]
@@ -300,54 +788,13 @@ class FlowChatManager {
                 type: obj.type,
                 status: obj.status,
                 progress: obj.progress,
+                registrationType: obj.registrationType,
+                maxRegistrations: obj.maxRegistrations,
+                registrations: obj.registrations,
+                requiredData: obj.requiredData,
                 collectedData: obj.collectedData
             }))
         };
-    }
-
-    formatObjectivesForPrompt(chatId, includeDetails = false) {
-        const summary = this.getObjectivesSummary(chatId);
-        if (!summary || summary.total === 0) {
-            return 'No objectives set yet.';
-        }
-
-        let output = '📋 **Current Objectives:**\n\n';
-        
-        summary.objectives.forEach(obj => {
-            const statusEmoji = obj.status === 'completed' ? '✅' : 
-                               obj.status === 'active' ? '🔄' : '⏳';
-            
-            output += `${statusEmoji} **${obj.description}**\n`;
-            output += `   Status: ${obj.status} (${obj.progress}%)\n`;
-            
-            if (includeDetails && obj.collectedData && Object.keys(obj.collectedData).length > 0) {
-                output += `   Collected Information:\n`;
-                Object.entries(obj.collectedData).forEach(([key, data]) => {
-                    output += `   - ${key}: ${data.value}\n`;
-                });
-            }
-            
-            if (obj.type === 'form' && obj.requiredData && obj.status !== 'completed') {
-                output += `   Required Information:\n`;
-                obj.requiredData.forEach(field => {
-                    const collected = obj.collectedData[field.name];
-                    const status = collected ? '✅' : '⭕';
-                    output += `   ${status} ${field.name}${field.type ? ` (${field.type})` : ''}: ${field.description || ''}\n`;
-                });
-            }
-            
-            output += '\n';
-        });
-
-        if (summary.currentObjective) {
-            output += `🎯 **Current Focus:** ${summary.currentObjective.description}\n`;
-        }
-
-        if (summary.status === 'completed') {
-            output += '\n✨ **All objectives completed!** ✨\n';
-        }
-
-        return output;
     }
 
     async analyzeUserMessage(chatId, message, isAdmin) {
@@ -401,6 +848,44 @@ class FlowChatManager {
         };
     }
 
+    /**
+     * Export objective data as CSV
+     * @param {string} chatId - Chat ID
+     * @param {string} objectiveId - Objective ID
+     * @returns {string} CSV data
+     */
+    async exportObjectiveToCSV(chatId, objectiveId) {
+        const chat = await this.getOrLoadChat(chatId);
+        if (!chat) return null;
+
+        const objective = chat.objectives.find(obj => obj.id === objectiveId);
+        if (!objective) return null;
+
+        // Define CSV headers
+        const headers = ['Registration ID', 'User ID', 'Status', 'Started At', 'Completed At', ...objective.requiredData.map(f => f.name)];
+        
+        // Build rows
+        const rows = objective.registrations.map(reg => {
+            const row = [
+                reg.id,
+                reg.userId,
+                reg.status,
+                new Date(reg.startedAt).toISOString(),
+                reg.completedAt ? new Date(reg.completedAt).toISOString() : '',
+                ...objective.requiredData.map(f => reg.collectedData[f.name]?.value || '')
+            ];
+            return row;
+        });
+
+        // Convert to CSV
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ].join('\n');
+
+        return csvContent;
+    }
+
     async cleanup() {
         // Clean up old chats (older than 30 days)
         const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
@@ -410,6 +895,7 @@ class FlowChatManager {
                 this.chats.delete(chatId);
                 try {
                     await fs.unlink(this.getChatPath(chatId));
+                    LogMaster.Log('Chat Cleaned Up', { chatId, lastActivity: new Date(chat.lastActivity).toISOString() });
                 } catch (error) {
                     console.error('Error deleting old chat:', error);
                 }
