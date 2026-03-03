@@ -613,6 +613,8 @@ async Chat(messages = [], config = {}) {
 
 // Complete rewritten FlowChat method for EasyAI.js
 
+// Replace your existing FlowChat method with this fixed version
+
 async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
     // Initialize FlowChat manager if not exists
     if (!this.FlowChatManager) {
@@ -695,25 +697,15 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
     const objectivesSummary = this.FlowChatManager.formatObjectivesForPrompt(chatid, true, id);
     const currentObjective = this.FlowChatManager.getCurrentObjective(chatid);
     
-    // Build prompt based on chat status and user role
-    let finalPrompt;
-    let messages;
-    
-    if (chat.status === 'setup' && isAdmin) {
-        // Setup mode - creating objectives
-        finalPrompt = FlowChatPrompts.SETUP_MODE
-            .replace('{history}', chat.messages.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n'));
-        
-        messages = [
-            { role: 'system', content: FlowChatPrompts.SYSTEM },
-            { role: 'user', content: finalPrompt }
-        ];
-        
+    // ===== FIX: Check for objective creation in BOTH setup and active modes for admins =====
+    // Try to detect if admin wants to create a new objective (works in any mode)
+    if (isAdmin) {
         // Use AI to detect if this message contains a new objective
         const objectiveDetectionPrompt = [
             { 
                 role: 'system', 
                 content: `You are an objective detector. Analyze if the user is trying to create a new objective. 
+                Look for phrases like "create objective", "new objective", "add objective", "I want to collect", "I need to track", etc.
                 Respond with JSON only: {
                     "isObjective": boolean, 
                     "description": string, 
@@ -757,7 +749,10 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
                     // Get updated summary
                     const updatedSummary = this.FlowChatManager.formatObjectivesForPrompt(chatid, true, id);
                     
-                    const creationResponse = `✅ Objective created successfully!\n\n${updatedSummary}\n\nWould you like to create another objective, or start working on this one?`;
+                    // Check if this is the first objective (was in setup mode) or additional objective
+                    const creationResponse = chat.status === 'setup' 
+                        ? `✅ First objective created successfully!\n\n${updatedSummary}\n\nWould you like to create another objective, or start working on this one?`
+                        : `✅ Additional objective created successfully!\n\n${updatedSummary}\n\nYou now have multiple objectives. You can switch between them or continue working.`;
                     
                     if (tokenCallback) {
                         for (const word of creationResponse.split(' ')) {
@@ -772,14 +767,30 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
                         full_text: creationResponse,
                         chatid,
                         isAdmin: true,
-                        status: 'setup',
+                        status: chat.status,
                         objectives: this.FlowChatManager.getObjectivesSummary(chatid)
                     };
                 }
             }
         } catch (error) {
             console.error('Error detecting objective:', error);
+            // Continue with normal flow if detection fails
         }
+    }
+    
+    // Build prompt based on chat status and user role
+    let finalPrompt;
+    let messages;
+    
+    if (chat.status === 'setup' && isAdmin) {
+        // Setup mode - creating objectives (but we already handled creation above, so this is for conversation)
+        finalPrompt = FlowChatPrompts.SETUP_MODE
+            .replace('{history}', chat.messages.slice(-5).map(m => `${m.role}: ${m.content}`).join('\n'));
+        
+        messages = [
+            { role: 'system', content: FlowChatPrompts.SYSTEM },
+            { role: 'user', content: finalPrompt }
+        ];
         
     } else if (chat.status === 'active') {
         // Check if this is a data submission for a form objective
@@ -931,7 +942,7 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
                             
                             if (remainingFields.length > 0) {
                                 const nextFieldPrompt = `Thanks! I've recorded that information. Next, I need:\n\n${
-                                    remainingFields.map(f => `- ${f.name} (${f.type}): ${f.description}`).join('\n')
+                                    remainingFields.map(f => `- ${f.name} (${f.type}): ${f.description || 'No description'}`).join('\n')
                                 }\n\nPlease provide the next piece of information.`;
                                 
                                 if (tokenCallback) {
@@ -960,10 +971,45 @@ async FlowChat({ message, chatid, id, tokenCallback = () => {} }) {
         
         // Generate AI response for normal conversation
         if (isAdmin) {
+            // Include note that admin can create new objectives anytime
+            const adminContext = currentObjective 
+                ? `Current focus: ${currentObjective.description}`
+                : 'No active objective selected.';
+                
             finalPrompt = FlowChatPrompts.ACTIVE_MODE_ADMIN
                 .replace('{objectives}', objectivesSummary)
-                .replace('{currentObjective}', currentObjective ? currentObjective.description : 'No active objective')
+                .replace('{currentObjective}', adminContext)
                 .replace('{message}', message);
+                
+            // Add reminder about creating new objectives if appropriate
+            if (message.toLowerCase().includes('new objective') || 
+                message.toLowerCase().includes('create objective') ||
+                message.toLowerCase().includes('add objective')) {
+                // We already handled this above, but if we got here, the detection failed
+                // So provide helpful guidance
+                const guidanceResponse = "I notice you mentioned creating a new objective. To help me better understand, please be specific about:\n\n" +
+                    "1. What information do you want to collect?\n" +
+                    "2. What type of data is it (text, number, date, etc.)?\n" +
+                    "3. Can users submit multiple entries or just one?\n" +
+                    "4. Is there a maximum number of submissions per user?\n\n" +
+                    "For example: 'I want to collect project ideas with name and description, multiple entries allowed'";
+                
+                if (tokenCallback) {
+                    for (const word of guidanceResponse.split(' ')) {
+                        tokenCallback(word + ' ');
+                        await EasyAI.Sleep(30);
+                    }
+                }
+                
+                await this.FlowChatManager.addMessage(chatid, 'system', guidanceResponse);
+                
+                return {
+                    full_text: guidanceResponse,
+                    chatid,
+                    isAdmin,
+                    status: chat.status
+                };
+            }
         } else {
             finalPrompt = FlowChatPrompts.ACTIVE_MODE_USER
                 .replace('{objectives}', objectivesSummary)
