@@ -750,8 +750,68 @@ function reconstructInstance(ClassType, id, storage, data) {
     return instance;
 }
 
+/**
+ * @typedef {Object} DBOptions
+ * @property {string} [id] - Unique identifier for the instance. If not provided, one will be auto-generated.
+ *                           Can be passed when loading an existing instance.
+ * 
+ * @property {StorageConnection} [storage] - Storage connection instance to use.
+ *                                           If not provided, the default storage will be used.
+ * 
+ * @property {boolean} [autoSave] - Whether to automatically save changes. Defaults to storage.autoSave.
+ * 
+ * @property {boolean} [skipSave] - If true, prevents the instance from being saved to storage.
+ *                                  Useful when you need to conditionally prevent saving based on validation
+ *                                  or business logic in the extended class constructor.
+ *                                  Example: 
+ *                                  ```js
+ *                                  class User extends DB {
+ *                                    constructor() {
+ *                                      const canCreate = someValidationLogic();
+ *                                      super({ skipSave: !canCreate });
+ *                                      if (!canCreate) {
+ *                                        // Handle error case without saving
+ *                                      }
+ *                                    }
+ *                                  }
+ *                                  ```
+ * 
+ * @property {boolean} [skipLoad] - If true, prevents loading existing data from storage.
+ *                                  Useful when you want a fresh instance regardless of existing data.
+ */
+
 // ========== The Enhanced DB Class ==========
 class DB {
+    /**
+     * Creates a new DB instance or loads an existing one.
+     * 
+     * @param {DBOptions} [options] - Configuration options for the instance.
+     * @returns {DB} The DB instance wrapped in an auto-save proxy.
+     * 
+     * @example
+     * // Create a new instance with auto-generated ID
+     * const user = new User();
+     * 
+     * @example
+     * // Load an existing instance by ID
+     * const user = new User({ id: '1234567890' });
+     * 
+     * @example
+     * // Use custom storage
+     * const user = new User({ storage: customStorage });
+     * 
+     * @example
+     * // Conditionally prevent saving based on validation
+     * class User extends DB {
+     *   constructor() {
+     *     const isValid = validateUserData();
+     *     super({ skipSave: !isValid });
+     *     if (!isValid) {
+     *       // Handle invalid case - instance won't be saved
+     *     }
+     *   }
+     * }
+     */
     constructor(options = {}) {
         debugLog('DB constructor called with options:', options);
         
@@ -762,6 +822,9 @@ class DB {
         this.__storage = options.storage || getDefaultStorage();
         this.__autoSave = this.__storage.autoSave;
         this.__uniqueKey = finalUniqueKey;
+        
+        // New flag to control saving
+        this.__skipSave = options.skipSave === true;
         
         // Build the full key with inheritance chain
         this.__buildKey();
@@ -791,12 +854,12 @@ class DB {
         
         // Load existing data - but only if this is NOT a new instance being created
         // This prevents overwriting constructor-set values
-        if (options.id) {
+        if (options.id && !options.skipLoad) {
             // This is an existing instance being loaded, so load the data
             this.__loadSync();
         } else {
-            // This is a new instance, don't load anything, just mark as dirty so it saves
-            this.__dirty = true;
+            // This is a new instance, don't load anything, mark as dirty only if not skipping save
+            this.__dirty = !this.__skipSave;
         }
         
         // Initialize state if not already set
@@ -808,7 +871,7 @@ class DB {
         memoryManager.registerAccess(this);
         memoryManager.incrementInstanceCount();
         
-        debugLog(`Instance created with key: ${this.__storageKey}`);
+        debugLog(`Instance created with key: ${this.__storageKey} (skipSave: ${this.__skipSave})`);
         
         // Return auto-save proxy
         return createAutoSaveProxy(this);
@@ -891,7 +954,13 @@ class DB {
     }
 
     async __save(transactionId = null) {
-        debugLog(`__save called for ${this.__storageKey}, dirty: ${this.__dirty}`);
+        debugLog(`__save called for ${this.__storageKey}, dirty: ${this.__dirty}, skipSave: ${this.__skipSave}`);
+        
+        // Skip if skipSave is true
+        if (this.__skipSave) {
+            debugLog('skipSave is true, skipping save');
+            return this;
+        }
         
         // Skip if not dirty
         if (!this.__dirty) {
@@ -925,6 +994,11 @@ class DB {
     }
 
     async saveWithTransaction() {
+        if (this.__skipSave) {
+            debugLog('skipSave is true, skipping transaction');
+            return this;
+        }
+        
         const transactionId = await transactionLogger.begin(this.__storageKey);
         try {
             await this.__save(transactionId);
@@ -998,7 +1072,7 @@ class DB {
                     const data = await store.load(key);
                     
                     // Create instance with ID but don't let constructor load data again
-                    const instance = new this({ id: uniqueKey, storage: store });
+                    const instance = new this({ id: uniqueKey, storage: store, skipLoad: true });
                     
                     // Apply the loaded data (this will preserve constructor values)
                     if (data) {
@@ -1039,7 +1113,7 @@ class DB {
                     const data = await store.load(key);
                     
                     // Create instance with ID
-                    const instance = new this({ id: uniqueKey, storage: store });
+                    const instance = new this({ id: uniqueKey, storage: store, skipLoad: true });
                     
                     // Apply the loaded data
                     if (data) {
@@ -1057,6 +1131,110 @@ class DB {
         
         return instances;
     }
+
+    // Add this to your DB class
+
+    static getAllSync(storage = null) {
+        const store = storage || getDefaultStorage();
+        
+        if (!store._getFilePath || typeof store._getFilePath !== 'function') {
+            throw new Error('getAllSync requires a storage that supports file paths');
+        }
+        
+        const instances = [];
+        const className = this.name;
+        
+        try {
+            const files = fsSync.readdirSync(store.folder);
+            
+            const relevantFiles = files.filter(f => 
+                f.endsWith(store.extension) && 
+                !f.startsWith('_') && 
+                !f.endsWith('.tmp')
+            );
+            
+            for (const file of relevantFiles) {
+                const key = file.replace(store.extension, '');
+                const [classChain] = key.split(':');
+                const classes = classChain.split('.');
+                const lastClass = classes[classes.length - 1];
+                
+                if (lastClass === className) {
+                    const uniqueKey = key.split(':')[1];
+                    
+                    const cacheKey = `${className}:${key}`;
+                    if (instanceCache.has(cacheKey)) {
+                        instances.push(instanceCache.get(cacheKey));
+                    } else {
+                        const filePath = store._getFilePath(key);
+                        try {
+                            const content = fsSync.readFileSync(filePath, 'utf-8');
+                            const data = JSON.parse(content);
+                            const deserialized = store._deserialize(data);
+                            
+                            // OPTION 1: Create instance without calling constructor
+                            // This is the key - bypass the constructor entirely
+                            const instance = Object.create(this.prototype);
+                            
+                            // Initialize DB properties
+                            instance.__storage = store;
+                            instance.__uniqueKey = uniqueKey;
+                            instance.__storageKey = key;
+                            instance.__dirty = false;
+                            instance.__skipSave = false;
+                            instance.__loaded = true;
+                            
+                            // Apply the loaded data
+                            if (deserialized) {
+                                for (const [prop, value] of Object.entries(deserialized)) {
+                                    if (!prop.startsWith('__') && typeof value !== 'function') {
+                                        instance[prop] = value;
+                                    }
+                                }
+                            }
+                            
+                            // Store in cache
+                            instanceCache.set(cacheKey, instance);
+                            
+                            // Set up proxy if needed
+                            const proxied = createAutoSaveProxy(instance);
+                            instances.push(proxied);
+                            
+                        } catch (err) {
+                            debugLog(`Error reading file ${filePath}:`, err.message);
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            debugLog('Error in getAllSync:', err.message);
+        }
+        
+        return instances;
+    }
+
+/**
+ * Synchronously find an instance by a specific field value
+ * @param {string} field - Field name to check
+ * @param {*} value - Value to match
+ * @param {StorageConnection} [storage] - Optional storage connection
+ * @returns {Object|null} Found instance or null
+ */
+static findOneBySync(field, value, storage = null) {
+    const instances = this.getAllSync(storage);
+    return instances.find(instance => instance[field] === value) || null;
+}
+
+/**
+ * Synchronously check if a field value exists
+ * @param {string} field - Field name to check
+ * @param {*} value - Value to check for
+ * @param {StorageConnection} [storage] - Optional storage connection
+ * @returns {boolean} True if exists
+ */
+static existsSync(field, value, storage = null) {
+    return this.findOneBySync(field, value, storage) !== null;
+}
     
     static async findBy(uniqueKey, storage = null) {
         const store = storage || getDefaultStorage();
@@ -1078,7 +1256,7 @@ class DB {
                 const data = await store.load(key);
                 
                 // Create instance with ID
-                const instance = new this({ id: uniqueKey, storage: store });
+                const instance = new this({ id: uniqueKey, storage: store, skipLoad: true });
                 
                 // Apply the loaded data
                 if (data) {
@@ -1124,7 +1302,7 @@ class DB {
         debugLog('Flushing all instances...');
         const saves = [];
         for (const [key, instance] of instanceCache) {
-            if (instance.__dirty) {
+            if (instance.__dirty && !instance.__skipSave) {
                 debugLog(`Saving dirty instance: ${key}`);
                 saves.push(instance.__save());
             }
