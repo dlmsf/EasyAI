@@ -1213,28 +1213,92 @@ class DB {
         return instances;
     }
 
-/**
- * Synchronously find an instance by a specific field value
- * @param {string} field - Field name to check
- * @param {*} value - Value to match
- * @param {StorageConnection} [storage] - Optional storage connection
- * @returns {Object|null} Found instance or null
- */
-static findOneBySync(field, value, storage = null) {
-    const instances = this.getAllSync(storage);
-    return instances.find(instance => instance[field] === value) || null;
-}
+    /**
+     * Synchronously find all instances that match a field value
+     * @param {string} field - Field name to check
+     * @param {*} value - Value to match (can be any type, including RegExp for pattern matching)
+     * @param {StorageConnection} [storage] - Optional storage connection
+     * @returns {Array} Array of matching instances
+     */
+    static findSync(field, value, storage = null) {
+        const instances = this.getAllSync(storage);
+        
+        if (value instanceof RegExp) {
+            return instances.filter(instance => {
+                const fieldValue = instance[field];
+                return fieldValue !== undefined && value.test(String(fieldValue));
+            });
+        }
+        
+        return instances.filter(instance => instance[field] === value);
+    }
 
-/**
- * Synchronously check if a field value exists
- * @param {string} field - Field name to check
- * @param {*} value - Value to check for
- * @param {StorageConnection} [storage] - Optional storage connection
- * @returns {boolean} True if exists
- */
-static existsSync(field, value, storage = null) {
-    return this.findOneBySync(field, value, storage) !== null;
-}
+    /**
+     * Synchronously find one instance that matches a field value
+     * @param {string} field - Field name to check
+     * @param {*} value - Value to match (can be any type, including RegExp for pattern matching)
+     * @param {StorageConnection} [storage] - Optional storage connection
+     * @returns {Object|null} First matching instance or null
+     */
+    static findOneBySync(field, value, storage = null) {
+        const matches = this.findSync(field, value, storage);
+        return matches.length > 0 ? matches[0] : null;
+    }
+
+    /**
+     * Asynchronously find all instances that match a field value
+     * @param {string} field - Field name to check
+     * @param {*} value - Value to match (can be any type, including RegExp for pattern matching)
+     * @param {StorageConnection} [storage] - Optional storage connection
+     * @returns {Promise<Array>} Promise resolving to array of matching instances
+     */
+    static async find(field, value, storage = null) {
+        const instances = await this.getAll(storage);
+        
+        if (value instanceof RegExp) {
+            return instances.filter(instance => {
+                const fieldValue = instance[field];
+                return fieldValue !== undefined && value.test(String(fieldValue));
+            });
+        }
+        
+        return instances.filter(instance => instance[field] === value);
+    }
+
+    /**
+     * Asynchronously find one instance that matches a field value
+     * @param {string} field - Field name to check
+     * @param {*} value - Value to match (can be any type, including RegExp for pattern matching)
+     * @param {StorageConnection} [storage] - Optional storage connection
+     * @returns {Promise<Object|null>} Promise resolving to first matching instance or null
+     */
+    static async findOneBy(field, value, storage = null) {
+        const matches = await this.find(field, value, storage);
+        return matches.length > 0 ? matches[0] : null;
+    }
+
+    /**
+     * Synchronously check if any instance matches a field value
+     * @param {string} field - Field name to check
+     * @param {*} value - Value to check for
+     * @param {StorageConnection} [storage] - Optional storage connection
+     * @returns {boolean} True if at least one match exists
+     */
+    static existsSync(field, value, storage = null) {
+        return this.findSync(field, value, storage).length > 0;
+    }
+
+    /**
+     * Asynchronously check if any instance matches a field value
+     * @param {string} field - Field name to check
+     * @param {*} value - Value to check for
+     * @param {StorageConnection} [storage] - Optional storage connection
+     * @returns {Promise<boolean>} Promise resolving to true if at least one match exists
+     */
+    static async exists(field, value, storage = null) {
+        const matches = await this.find(field, value, storage);
+        return matches.length > 0;
+    }
     
     static async findBy(uniqueKey, storage = null) {
         const store = storage || getDefaultStorage();
